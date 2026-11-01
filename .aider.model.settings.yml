@@ -1,0 +1,4 @@
+- name: ollama_chat/qwen3-coder-next
+  edit_format: diff
+  extra_params:
+    num_ctx: 65536

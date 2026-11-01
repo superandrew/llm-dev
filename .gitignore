@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+state/
+runs/
+.aider*
+!.aider.model.settings.yml
+.DS_Store
