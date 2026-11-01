@@ -3,7 +3,7 @@ id = "004"
 title = "Card runner"
 edit = ["llmdev/cards.py", "llmdev/runner.py", "tests/test_runner.py"]
 read = ["llmdev/registry.py", "llmdev/server.py", "bootstrap.py", "cards/001-registry.md"]
-checks = ["python3 -m unittest discover -s tests -v", "python3 -m py_compile llmdev/cards.py llmdev/runner.py", "git diff --check"]
+checks = ["python3 -m unittest discover -s tests -v", "python3 -m py_compile llmdev/cards.py llmdev/runner.py", "git --no-pager diff --check"]
 commit = "feat: run a card with Aider and record the outcome"
 +++
 

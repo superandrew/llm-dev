@@ -3,7 +3,7 @@ id = "002"
 title = "Serve, stop, status"
 edit = ["llmdev/server.py", "tests/test_server.py"]
 read = ["llmdev/registry.py"]
-checks = ["python3 -m unittest discover -s tests -v", "python3 -m py_compile llmdev/server.py", "git diff --check"]
+checks = ["python3 -m unittest discover -s tests -v", "python3 -m py_compile llmdev/server.py", "git --no-pager diff --check"]
 commit = "feat: start, stop and health-check model servers"
 +++
 

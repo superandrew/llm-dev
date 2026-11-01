@@ -24,5 +24,7 @@ for r in c.get("read", []):
     cmd += ["--read", r]
 cmd += ["--test-cmd", " && ".join(c["checks"]), "--auto-test", "--message", msg]
 cmd += c["edit"]
+os.environ["GIT_PAGER"] = "cat"
+os.environ["PAGER"] = "cat"
 os.environ.setdefault("OLLAMA_API_BASE", "http://127.0.0.1:11434")
 os.execvp(cmd[0], cmd)

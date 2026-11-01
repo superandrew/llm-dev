@@ -3,7 +3,7 @@ id = "003"
 title = "Benchmark prefill and decode"
 edit = ["llmdev/bench.py", "tests/test_bench.py"]
 read = ["llmdev/registry.py", "llmdev/server.py"]
-checks = ["python3 -m unittest discover -s tests -v", "python3 -m py_compile llmdev/bench.py", "git diff --check"]
+checks = ["python3 -m unittest discover -s tests -v", "python3 -m py_compile llmdev/bench.py", "git --no-pager diff --check"]
 commit = "feat: benchmark prefill and decode speed separately"
 +++
 

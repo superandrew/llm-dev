@@ -3,7 +3,7 @@ id = "001"
 title = "Model registry"
 edit = ["llmdev/registry.py", "tests/test_registry.py"]
 read = ["models.toml"]
-checks = ["python3 -m unittest discover -s tests -v", "python3 -m py_compile llmdev/registry.py", "git diff --check"]
+checks = ["python3 -m unittest discover -s tests -v", "python3 -m py_compile llmdev/registry.py", "git --no-pager diff --check"]
 commit = "feat: model registry loaded from models.toml"
 +++
 
