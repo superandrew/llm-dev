@@ -14,5 +14,8 @@ llm-dev is a deterministic toolkit to serve, benchmark and drive local LLMs
    write the question in `cards/QUESTIONS.md` and stop.
 5. Small diffs: no reformatting, no renaming, no unrelated clean-up.
    No line may end with spaces. Use short SEARCH blocks.
-6. Done means every command in the card's `checks` passes.
+6. Done means every command in the card's `checks` passes. The tests you write are
+   yours to fix: when one of them fails, recompute its expected value by hand
+   before changing the code. Never loop on the same failure: after two
+   attempts, stop and write the question in `cards/QUESTIONS.md`.
 7. Do not commit. Andrew commits after review with the card's `commit` message.
