@@ -230,6 +230,7 @@ def run_card(
         "timed_out": timed_out,
         "empty_files": empty,
         "stray_files": stray,
+        "run_dir": run_dir,
     }
 
     meta_path = os.path.join(run_dir, "meta.json")

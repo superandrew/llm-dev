@@ -4,7 +4,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from llmdev import bench, cards, lab, metrics, registry, runner, server, pull
+from llmdev import bench, cards, evals, lab, metrics, registry, runner, server, pull
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -163,6 +163,38 @@ def _dispatch(args) -> int:
         from llmdev import tui
         return tui.run_tui(str(ROOT))
 
+    elif args.command == "eval":
+        m = registry.get(registry_data, args.model)
+        if not server.health(m):
+            print(f"{m.name} is not healthy", file=sys.stderr)
+            return 1
+
+        runs_dir = ROOT / "runs"
+        runs_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            row = evals.run_eval(args.name, m, server.base_url(m), str(ROOT), str(runs_dir), timeout_s=args.timeout)
+        except cards.CardError as e:
+            print(str(e), file=sys.stderr)
+            return 1
+
+        evals_path = ROOT / "runs" / "eval.jsonl"
+        evals_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(evals_path, "a") as f:
+            f.write(json.dumps(row) + "\n")
+
+        print(evals.format_evals([row]))
+
+        if row.get("passed") and row.get("hidden_passed") == row.get("hidden_total") and row.get("hidden_total", 0) > 0:
+            return 0
+        return 1
+
+    elif args.command == "evals":
+        evals_path = ROOT / "runs" / "eval.jsonl"
+        rows = evals.read_evals(str(evals_path))
+        print(evals.format_evals(rows))
+        return 0
+
     return 0
 
 
@@ -226,6 +258,15 @@ def main(argv=None) -> int:
 
     # tui
     subparsers.add_parser("tui", help="Open the lab TUI")
+
+    # eval
+    eval_parser = subparsers.add_parser("eval", help="Run an eval")
+    eval_parser.add_argument("name", help="Eval name")
+    eval_parser.add_argument("--model", required=True, help="Model name")
+    eval_parser.add_argument("--timeout", type=int, default=1800, help="Timeout in seconds")
+
+    # evals
+    evals_parser = subparsers.add_parser("evals", help="Show eval records")
 
     try:
         args = parser.parse_args(argv)
