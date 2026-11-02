@@ -56,7 +56,7 @@ def summarize(rows) -> dict:
     backend = rows[0].get("backend")
 
     # Calculate prefill_tps from all rows
-    points = [(r.get("prompt_tokens", 0), r.get("ttft_s", 0)) for r in rows]
+    points = [(r["prompt_tokens"], r["ttft_s"]) for r in rows if r.get("prompt_tokens") is not None and r.get("ttft_s") is not None]
     prefill_tps = slope_tps(points)
 
     # Calculate decode_tps from all rows

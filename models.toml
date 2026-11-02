@@ -23,3 +23,21 @@ model = "~/models/mlx/Qwen3-Coder-Next-4bit"
 ctx = 65536
 port = 8081
 args = ["--max-tokens", "16000"]
+
+[models.qwen38]
+backend = "ollama"
+model = "qwen3.8:latest"
+ctx = 65536
+port = 11434
+
+[models.llama31-70b]
+backend = "ollama"
+model = "llama3.1:70b"
+ctx = 65536
+port = 11434
+
+[models.gemma4-e4b]
+backend = "ollama"
+model = "gemma4:e4b"
+ctx = 65536
+port = 11434

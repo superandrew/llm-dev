@@ -72,6 +72,14 @@ class TestLab(unittest.TestCase):
         self.assertEqual(rows[0]["n_words"], 3000)
         self.assertEqual(rows[0]["seed"], seed)
 
+    def test_summarize_skips_rows_without_ttft(self):
+        rows = [
+            {"model": "m1", "backend": "ollama", "ttft_s": 1.0, "prompt_tokens": 1000},
+            {"model": "m1", "backend": "ollama", "ttft_s": None, "prompt_tokens": 1500},
+            {"model": "m1", "backend": "ollama", "ttft_s": 2.0, "prompt_tokens": 2000},
+        ]
+        self.assertEqual(lab.summarize(rows)["prefill_tps"], 1000.0)
+
     def test_summarize(self):
         # Test with even number of decode values
         rows = [
