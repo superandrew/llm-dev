@@ -149,6 +149,10 @@ def _dispatch(args) -> int:
         print(lab.format_table(summaries))
         return 0
 
+    elif args.command == "tui":
+        from llmdev import tui
+        return tui.run_tui(str(ROOT))
+
     return 0
 
 
@@ -203,6 +207,9 @@ def main(argv=None) -> int:
 
     # results
     results_parser = subparsers.add_parser("results", help="Show sweep results")
+
+    # tui
+    subparsers.add_parser("tui", help="Open the lab TUI")
 
     try:
         args = parser.parse_args(argv)
