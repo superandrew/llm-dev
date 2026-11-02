@@ -109,6 +109,34 @@ def run_checks(checks: tuple, cwd: str, run=subprocess.run) -> list[dict]:
     return results
 
 
+def changed_paths(repo: str, run=subprocess.run) -> set:
+    """Return set of changed file paths."""
+    result = run(
+        ["git", "status", "--porcelain", "-z", "--untracked-files=all"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+    stdout = result.stdout
+    items = stdout.split("\0")
+    items = [item for item in items if item]
+    paths = set()
+    for item in items:
+        if len(item) > 3 and item[2] == " ":
+            paths.add(item[3:])
+    return paths
+
+
+def empty_files(card: Card, repo: str) -> list:
+    """Return list of edit files that are missing or empty."""
+    empty = []
+    for path in card.edit:
+        full_path = os.path.join(repo, path)
+        if not os.path.exists(full_path) or os.path.getsize(full_path) == 0:
+            empty.append(path)
+    return empty
+
+
 def run_card(
     card: Card,
     m: Model,
@@ -118,6 +146,7 @@ def run_card(
     run=subprocess.run,
     now=datetime.now,
     extra: str = "",
+    timeout_s: int = 2400,
 ) -> dict:
     """Run a card and return metadata."""
     started = now()
@@ -136,11 +165,26 @@ def run_card(
     full_env = os.environ.copy()
     full_env.update(env)
 
-    result = run(
-        cmd,
-        cwd=repo,
-        env=full_env,
-    )
+    before = changed_paths(repo, run)
+
+    timed_out = False
+    try:
+        result = run(
+            cmd,
+            cwd=repo,
+            env=full_env,
+            timeout=timeout_s,
+        )
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        result = type('obj', (object,), {
+            'returncode': None,
+            'stdout': '',
+            'stderr': 'Timeout expired',
+        })()
+
+    after = changed_paths(repo, run)
+    stray = sorted(after - before - set(card.edit))
 
     checks_result = run_checks(card.checks, repo, run)
     passed = all(r["returncode"] == 0 for r in checks_result)
@@ -168,6 +212,7 @@ def run_card(
     ended = now()
 
     # Write meta.json
+    empty = empty_files(card, repo)
     meta = {
         "card_id": card.id,
         "title": card.title,
@@ -177,7 +222,10 @@ def run_card(
         "ended": ended.isoformat(),
         "aider_returncode": result.returncode,
         "checks": checks_result,
-        "passed": passed,
+        "passed": passed and not timed_out and len(empty) == 0 and len(stray) == 0,
+        "timed_out": timed_out,
+        "empty_files": empty,
+        "stray_files": stray,
     }
 
     meta_path = os.path.join(run_dir, "meta.json")

@@ -85,6 +85,7 @@ def _dispatch(args) -> int:
             args.repo,
             str(runs_dir),
             extra=args.message or "",
+            timeout_s=args.timeout,
         )
 
         print(json.dumps(meta))
@@ -188,6 +189,7 @@ def main(argv=None) -> int:
     run_parser.add_argument("--model", required=True, help="Model name")
     run_parser.add_argument("--repo", default=".", help="Repository path")
     run_parser.add_argument("--message", help="Extra message")
+    run_parser.add_argument("--timeout", type=int, default=2400, help="Timeout in seconds")
 
     # add
     add_parser = subparsers.add_parser("add", help="Add a model")

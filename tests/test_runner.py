@@ -324,6 +324,8 @@ class TestRunCard(unittest.TestCase):
             repo = tmpdir
             runs_dir = os.path.join(tmpdir, "runs")
             os.makedirs(runs_dir)
+            with open(os.path.join(repo, "file1.py"), "w") as f:
+                f.write("x")
 
             calls = []
             def fake_run(cmd, **kwargs):
@@ -461,6 +463,8 @@ class TestRunCard(unittest.TestCase):
             repo = tmpdir
             runs_dir = os.path.join(tmpdir, "runs")
             os.makedirs(runs_dir)
+            with open(os.path.join(repo, "file1.py"), "w") as f:
+                f.write("x")
 
             calls = []
             def fake_run(cmd, **kwargs):

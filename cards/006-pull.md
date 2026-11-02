@@ -43,7 +43,7 @@ Add `source: str = ""` as the last field of `Model` and accept an optional
 - `add_block`: returns this text, strings written with `json.dumps`, the `source`
   line only when source is set, the `args` line only when args is set:
 
-      
+
       [models.NAME]
       backend = "mlx"
       model = "~/models/mlx/dir"
