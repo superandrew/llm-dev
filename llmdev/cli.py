@@ -4,7 +4,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from llmdev import bench, cards, lab, registry, runner, server, pull
+from llmdev import bench, cards, lab, metrics, registry, runner, server, pull
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -150,6 +150,15 @@ def _dispatch(args) -> int:
         print(lab.format_table(summaries))
         return 0
 
+    elif args.command == "runs":
+        rows = metrics.read_runs(str(runs_dir))
+        if args.card:
+            rows = [r for r in rows if r.get("card") == args.card]
+        if args.model:
+            rows = [r for r in rows if r.get("model") == args.model]
+        print(metrics.format_runs(rows))
+        return 0
+
     elif args.command == "tui":
         from llmdev import tui
         return tui.run_tui(str(ROOT))
@@ -209,6 +218,11 @@ def main(argv=None) -> int:
 
     # results
     results_parser = subparsers.add_parser("results", help="Show sweep results")
+
+    # runs
+    runs_parser = subparsers.add_parser("runs", help="Show run records")
+    runs_parser.add_argument("--card", help="Filter by card ID")
+    runs_parser.add_argument("--model", help="Filter by model name")
 
     # tui
     subparsers.add_parser("tui", help="Open the lab TUI")

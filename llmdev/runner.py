@@ -41,9 +41,13 @@ def aider_model(m: Model, base_url: str) -> tuple[str, dict]:
 
 def default_message(card: Card) -> str:
     """Build the default message for Aider."""
-    msg = (f"Implement card {card.id} as written. Follow AGENTS.md. Edit only: "
-           + ", ".join(card.edit) + ". Output SEARCH/REPLACE blocks now. "
-           "No line may end with spaces. ")
+    if card.edit_format == "whole":
+        msg = (f"Implement card {card.id} as written. Follow AGENTS.md. Edit only: "
+               + ", ".join(card.edit) + ". Output each changed file once, as its path alone on one line followed by a fenced code block with the complete file, then stop. Write no other fenced code block: any text line before a fence becomes a file name. No line may end with spaces. ")
+    else:
+        msg = (f"Implement card {card.id} as written. Follow AGENTS.md. Edit only: "
+               + ", ".join(card.edit) + ". Output SEARCH/REPLACE blocks now. "
+               "No line may end with spaces. ")
     return msg
 
 
