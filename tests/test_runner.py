@@ -1,0 +1,490 @@
+import os
+import tempfile
+import unittest
+from datetime import datetime
+
+from llmdev.cards import Card, CardError, parse
+from llmdev.runner import (
+    BASE_FLAGS,
+    aider_command,
+    aider_model,
+    default_message,
+    run_card,
+    run_checks,
+)
+
+
+class TestCardParsing(unittest.TestCase):
+    def test_parse_valid_card(self):
+        toml_content = """+++
+id = "001"
+title = "Test Card"
+edit = ["file1.py", "file2.py"]
+read = ["readme.md"]
+checks = ["python3 -m unittest"]
+commit = "feat: test"
++++
+
+Markdown content here"""
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            card_path = os.path.join(tmpdir, "test.md")
+            with open(card_path, "w") as f:
+                f.write(toml_content)
+
+            card = parse(card_path)
+
+            self.assertEqual(card.id, "001")
+            self.assertEqual(card.title, "Test Card")
+            self.assertEqual(card.edit, ("file1.py", "file2.py"))
+            self.assertEqual(card.read, ("readme.md",))
+            self.assertEqual(card.checks, ("python3 -m unittest",))
+            self.assertEqual(card.commit, "feat: test")
+            self.assertEqual(card.edit_format, "")
+            self.assertEqual(card.path, card_path)
+
+    def test_parse_missing_keys(self):
+        toml_content = """+++
+id = "001"
+title = "Test Card"
++++
+
+Markdown content"""
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            card_path = os.path.join(tmpdir, "test.md")
+            with open(card_path, "w") as f:
+                f.write(toml_content)
+
+            with self.assertRaises(CardError) as cm:
+                parse(card_path)
+
+            self.assertIn("missing required key", str(cm.exception))
+
+    def test_parse_missing_plus_plus_plus(self):
+        toml_content = """id = "001"
+title = "Test Card"
+edit = ["file1.py"]
+checks = ["echo test"]
+commit = "feat: test"
+
+Markdown content"""
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            card_path = os.path.join(tmpdir, "test.md")
+            with open(card_path, "w") as f:
+                f.write(toml_content)
+
+            with self.assertRaises(CardError) as cm:
+                parse(card_path)
+
+            self.assertIn("missing opening +++", str(cm.exception))
+
+    def test_parse_missing_file(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            card_path = os.path.join(tmpdir, "nonexistent.md")
+
+            with self.assertRaises(CardError) as cm:
+                parse(card_path)
+
+            self.assertIn("cannot read card", str(cm.exception))
+            self.assertIn(card_path, str(cm.exception))
+
+
+class TestAiderModel(unittest.TestCase):
+    def test_ollama_model(self):
+        from llmdev.registry import Model
+        m = Model(
+            name="test",
+            backend="ollama",
+            model="qwen3-coder-next",
+            ctx=4096,
+            port=11434,
+        )
+        model_str, env = aider_model(m, "http://127.0.0.1:11434/v1")
+        self.assertEqual(model_str, "ollama_chat/qwen3-coder-next")
+        self.assertEqual(env, {"OLLAMA_API_BASE": "http://127.0.0.1:11434"})
+
+    def test_llama_model(self):
+        from llmdev.registry import Model
+        m = Model(
+            name="test",
+            backend="llama",
+            model="~/models/llama-7b",
+            ctx=4096,
+            port=8080,
+        )
+        model_str, env = aider_model(m, "http://127.0.0.1:8080/v1")
+        self.assertEqual(model_str, "openai/~/models/llama-7b")
+        self.assertEqual(env, {
+            "OPENAI_API_BASE": "http://127.0.0.1:8080/v1",
+            "OPENAI_API_KEY": "local",
+        })
+
+    def test_mlx_model(self):
+        from llmdev.registry import Model
+        m = Model(
+            name="test",
+            backend="mlx",
+            model="mlx-community/Llama-3-8B",
+            ctx=4096,
+            port=8080,
+        )
+        model_str, env = aider_model(m, "http://127.0.0.1:8080/v1")
+        self.assertEqual(model_str, "openai/mlx-community/Llama-3-8B")
+        self.assertEqual(env, {
+            "OPENAI_API_BASE": "http://127.0.0.1:8080/v1",
+            "OPENAI_API_KEY": "local",
+        })
+
+
+class TestDefaultMessage(unittest.TestCase):
+    def test_default_message(self):
+        card = Card(
+            path="cards/001.md",
+            id="001",
+            title="Test",
+            edit=("file1.py",),
+            read=(),
+            checks=(),
+            commit="feat: test",
+        )
+        msg = default_message(card)
+        self.assertIn("Implement card 001", msg)
+        self.assertIn("file1.py", msg)
+
+
+class TestAiderCommand(unittest.TestCase):
+    def test_aider_command_ollama(self):
+        from llmdev.registry import Model
+        card = Card(
+            path="cards/001.md",
+            id="001",
+            title="Test",
+            edit=("file1.py",),
+            read=(),
+            checks=("echo test",),
+            commit="feat: test",
+        )
+        m = Model(
+            name="test",
+            backend="ollama",
+            model="qwen3-coder-next",
+            ctx=4096,
+            port=11434,
+        )
+        cmd, env = aider_command(card, m, "http://127.0.0.1:11434/v1", "history.md")
+
+        self.assertEqual(cmd[:3], ["aider", "--model", "ollama_chat/qwen3-coder-next"])
+        self.assertIn("--chat-history-file", cmd)
+        self.assertIn("history.md", cmd)
+        self.assertIn("--read", cmd)
+        self.assertIn("--test-cmd", cmd)
+        self.assertIn("--auto-test", cmd)
+        self.assertIn("--message", cmd)
+
+    def test_aider_command_llama(self):
+        from llmdev.registry import Model
+        card = Card(
+            path="cards/001.md",
+            id="001",
+            title="Test",
+            edit=("file1.py",),
+            read=(),
+            checks=(),
+            commit="feat: test",
+        )
+        m = Model(
+            name="test",
+            backend="llama",
+            model="~/models/llama",
+            ctx=4096,
+            port=8080,
+        )
+        cmd, env = aider_command(card, m, "http://127.0.0.1:8080/v1", "history.md")
+
+        self.assertEqual(cmd[:3], ["aider", "--model", "openai/~/models/llama"])
+
+    def test_aider_command_with_edit_format(self):
+        from llmdev.registry import Model
+        card = Card(
+            path="cards/001.md",
+            id="001",
+            title="Test",
+            edit=("file1.py",),
+            read=(),
+            checks=(),
+            commit="feat: test",
+            edit_format="diff",
+        )
+        m = Model(
+            name="test",
+            backend="ollama",
+            model="qwen3-coder-next",
+            ctx=4096,
+            port=11434,
+        )
+        cmd, env = aider_command(card, m, "http://127.0.0.1:11434/v1", "history.md")
+
+        self.assertEqual(cmd[3:5], ["--edit-format", "diff"])
+
+    def test_aider_command_with_extra_message(self):
+        from llmdev.registry import Model
+        card = Card(
+            path="cards/001.md",
+            id="001",
+            title="Test",
+            edit=("file1.py",),
+            read=(),
+            checks=(),
+            commit="feat: test",
+        )
+        m = Model(
+            name="test",
+            backend="ollama",
+            model="qwen3-coder-next",
+            ctx=4096,
+            port=11434,
+        )
+        cmd, env = aider_command(card, m, "http://127.0.0.1:11434/v1", "history.md", "extra message")
+
+        self.assertIn("extra message", cmd)
+
+
+class TestRunChecks(unittest.TestCase):
+    def test_run_checks_success(self):
+        def fake_run(cmd, **kwargs):
+            result = type('obj', (object,), {
+                'returncode': 0,
+                'stdout': 'hello\n',
+                'stderr': '',
+            })()
+            return result
+
+        checks = ("echo hello",)
+        results = run_checks(checks, "/tmp", run=fake_run)
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["cmd"], "echo hello")
+        self.assertEqual(results[0]["returncode"], 0)
+        self.assertIn("hello", results[0]["output"])
+
+    def test_run_checks_failure(self):
+        def fake_run(cmd, **kwargs):
+            result = type('obj', (object,), {
+                'returncode': 1,
+                'stdout': '',
+                'stderr': 'error\n',
+            })()
+            return result
+
+        checks = ("exit 1",)
+        results = run_checks(checks, "/tmp", run=fake_run)
+
+        self.assertEqual(results[0]["returncode"], 1)
+
+    def test_run_checks_output_truncation(self):
+        def fake_run(cmd, **kwargs):
+            result = type('obj', (object,), {
+                'returncode': 0,
+                'stdout': 'a' * 5000,
+                'stderr': 'b' * 5000,
+            })()
+            return result
+
+        checks = ("test",)
+        results = run_checks(checks, "/tmp", run=fake_run)
+
+        self.assertEqual(len(results[0]["output"]), 4000)
+
+
+class TestRunCard(unittest.TestCase):
+    def test_run_card_success(self):
+        from llmdev.registry import Model
+
+        card = Card(
+            path="cards/001.md",
+            id="001",
+            title="Test",
+            edit=("file1.py",),
+            read=(),
+            checks=("echo test",),
+            commit="feat: test",
+        )
+
+        m = Model(
+            name="test",
+            backend="ollama",
+            model="qwen3-coder-next",
+            ctx=4096,
+            port=11434,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo = tmpdir
+            runs_dir = os.path.join(tmpdir, "runs")
+            os.makedirs(runs_dir)
+
+            calls = []
+            def fake_run(cmd, **kwargs):
+                if isinstance(cmd, list) and cmd[:2] == ["git", "diff"]:
+                    result = type('obj', (object,), {
+                        'returncode': 0,
+                        'stdout': 'DIFF',
+                        'stderr': '',
+                    })()
+                else:
+                    result = type('obj', (object,), {
+                        'returncode': 0,
+                        'stdout': 'success',
+                        'stderr': '',
+                    })()
+                calls.append((cmd, kwargs))
+                return result
+
+            def fake_now():
+                return datetime(2024, 1, 1, 12, 0, 0)
+
+            meta = run_card(
+                card, m, "http://127.0.0.1:11434/v1", repo, runs_dir,
+                run=fake_run, now=fake_now
+            )
+
+            self.assertTrue(meta["passed"])
+            self.assertEqual(meta["card_id"], "001")
+            self.assertEqual(meta["model_name"], "test")
+            self.assertEqual(meta["backend"], "ollama")
+
+            run_dir = os.path.join(runs_dir, "20240101-120000-001")
+            self.assertTrue(os.path.exists(run_dir))
+            self.assertTrue(os.path.exists(os.path.join(run_dir, "meta.json")))
+            self.assertTrue(os.path.exists(os.path.join(run_dir, "diff.patch")))
+
+            with open(os.path.join(run_dir, "meta.json"), "r") as f:
+                import json
+                saved_meta = json.load(f)
+            self.assertEqual(saved_meta, meta)
+
+            with open(os.path.join(run_dir, "diff.patch"), "r") as f:
+                diff_content = f.read()
+            self.assertEqual(diff_content, "DIFF")
+
+            aider_call = [c for c in calls if isinstance(c[0], list) and c[0][0] == "aider"][0]
+            self.assertEqual(aider_call[1]["cwd"], repo)
+            self.assertIn("OLLAMA_API_BASE", aider_call[1]["env"])
+
+            git_add_call = [c for c in calls if isinstance(c[0], list) and c[0][:2] == ["git", "add"]][0]
+            git_diff_call = [c for c in calls if isinstance(c[0], list) and c[0][:2] == ["git", "diff"]][0]
+            git_add_idx = calls.index(git_add_call)
+            git_diff_idx = calls.index(git_diff_call)
+            self.assertLess(git_add_idx, git_diff_idx)
+
+    def test_run_card_failure(self):
+        from llmdev.registry import Model
+
+        card = Card(
+            path="cards/001.md",
+            id="001",
+            title="Test",
+            edit=("file1.py",),
+            read=(),
+            checks=("exit 1",),
+            commit="feat: test",
+        )
+
+        m = Model(
+            name="test",
+            backend="ollama",
+            model="qwen3-coder-next",
+            ctx=4096,
+            port=11434,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo = tmpdir
+            runs_dir = os.path.join(tmpdir, "runs")
+            os.makedirs(runs_dir)
+
+            def fake_run(cmd, **kwargs):
+                if isinstance(cmd, str) and cmd == "exit 1":
+                    result = type('obj', (object,), {
+                        'returncode': 1,
+                        'stdout': 'failed',
+                        'stderr': '',
+                    })()
+                elif isinstance(cmd, list) and cmd[:2] == ["git", "diff"]:
+                    result = type('obj', (object,), {
+                        'returncode': 0,
+                        'stdout': 'DIFF',
+                        'stderr': '',
+                    })()
+                else:
+                    result = type('obj', (object,), {
+                        'returncode': 0,
+                        'stdout': '',
+                        'stderr': '',
+                    })()
+                return result
+
+            def fake_now():
+                return datetime(2024, 1, 1, 12, 0, 0)
+
+            meta = run_card(
+                card, m, "http://127.0.0.1:11434/v1", repo, runs_dir,
+                run=fake_run, now=fake_now
+            )
+
+            self.assertFalse(meta["passed"])
+
+    def test_run_card_with_extra(self):
+        from llmdev.registry import Model
+
+        card = Card(
+            path="cards/001.md",
+            id="001",
+            title="Test",
+            edit=("file1.py",),
+            read=(),
+            checks=("echo test",),
+            commit="feat: test",
+        )
+
+        m = Model(
+            name="test",
+            backend="ollama",
+            model="qwen3-coder-next",
+            ctx=4096,
+            port=11434,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo = tmpdir
+            runs_dir = os.path.join(tmpdir, "runs")
+            os.makedirs(runs_dir)
+
+            calls = []
+            def fake_run(cmd, **kwargs):
+                result = type('obj', (object,), {
+                    'returncode': 0,
+                    'stdout': 'success',
+                    'stderr': '',
+                })()
+                calls.append((cmd, kwargs))
+                return result
+
+            def fake_now():
+                return datetime(2024, 1, 1, 12, 0, 0)
+
+            meta = run_card(
+                card, m, "http://127.0.0.1:11434/v1", repo, runs_dir,
+                run=fake_run, now=fake_now, extra="more"
+            )
+
+            aider_call = [c for c in calls if isinstance(c[0], list) and c[0][0] == "aider"][0]
+            message_idx = aider_call[0].index("--message")
+            message = aider_call[0][message_idx + 1]
+            self.assertTrue(message.endswith(" more"))
+
+
+if __name__ == "__main__":
+    unittest.main()
