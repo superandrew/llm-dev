@@ -4,7 +4,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from llmdev import bench, cards, registry, runner, server, pull
+from llmdev import bench, cards, lab, registry, runner, server, pull
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -118,6 +118,37 @@ def _dispatch(args) -> int:
             print(f"pull failed with code {returncode}", file=sys.stderr)
             return returncode
 
+    elif args.command == "sweep":
+        m = registry.get(registry_data, args.name)
+        if not server.health(m):
+            print(f"{m.name} is not healthy", file=sys.stderr)
+            return 1
+
+        seed = int(datetime.now().timestamp()) % 50
+        sweep_id = datetime.now().isoformat()
+
+        rows = lab.sweep(m, seed=seed)
+
+        for row in rows:
+            row["sweep"] = sweep_id
+
+        bench_path = ROOT / "runs" / "bench.jsonl"
+        bench_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(bench_path, "a") as f:
+            for row in rows:
+                f.write(json.dumps(row) + "\n")
+
+        summaries = lab.latest_sweeps(lab.read_rows(str(bench_path)))
+        print(lab.format_table(summaries))
+        return 0
+
+    elif args.command == "results":
+        bench_path = ROOT / "runs" / "bench.jsonl"
+        rows = lab.read_rows(str(bench_path))
+        summaries = lab.latest_sweeps(rows)
+        print(lab.format_table(summaries))
+        return 0
+
     return 0
 
 
@@ -165,6 +196,13 @@ def main(argv=None) -> int:
     # pull
     pull_parser = subparsers.add_parser("pull", help="Pull a model")
     pull_parser.add_argument("name", help="Model name")
+
+    # sweep
+    sweep_parser = subparsers.add_parser("sweep", help="Run sweep benchmark")
+    sweep_parser.add_argument("name", help="Model name")
+
+    # results
+    results_parser = subparsers.add_parser("results", help="Show sweep results")
 
     try:
         args = parser.parse_args(argv)

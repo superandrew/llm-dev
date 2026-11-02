@@ -104,9 +104,10 @@ def run(
     max_tokens: int = 128,
     post=_post,
     clock=time.perf_counter,
+    seed: int = 0,
 ) -> dict:
     """Run benchmark on model m."""
-    prompt = make_prompt(n_words)
+    prompt = make_prompt(n_words, seed)
     url = base_url(m) + "/chat/completions"
     payload = {
         "model": m.model,
