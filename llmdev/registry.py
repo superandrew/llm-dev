@@ -20,6 +20,7 @@ class Model:
     args: tuple = ()
     env: tuple = ()
     notes: str = ""
+    source: str = ""
 
 
 def load(path: str) -> dict[str, Model]:
@@ -42,7 +43,7 @@ def load(path: str) -> dict[str, Model]:
 
 def _parse_model(name: str, data: dict, default_host: str) -> Model:
     required_keys = ["backend", "model", "ctx", "port"]
-    allowed_keys = set(required_keys) | {"host", "args", "env", "notes"}
+    allowed_keys = set(required_keys) | {"host", "args", "env", "notes", "source"}
 
     unknown_keys = set(data.keys()) - allowed_keys
     if unknown_keys:
@@ -84,6 +85,7 @@ def _parse_model(name: str, data: dict, default_host: str) -> Model:
         model_path = os.path.expanduser(model_path)
 
     notes = data.get("notes", "")
+    source = data.get("source", "")
 
     return Model(
         name=name,
@@ -95,6 +97,7 @@ def _parse_model(name: str, data: dict, default_host: str) -> Model:
         args=args,
         env=env,
         notes=notes,
+        source=source,
     )
 
 

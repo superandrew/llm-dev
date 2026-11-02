@@ -17,8 +17,9 @@ notes = "Current Aider worker (Ollama)."
 # port = 8080
 # args = ["-ngl", "99", "-fa", "on"]
 #
-# [models.qwen-coder-next-mlx]
-# backend = "mlx"
-# model = "~/models/mlx/<dir>"
-# ctx = 65536
-# port = 8081
+[models.qwen-coder-next-mlx]
+backend = "mlx"
+model = "~/models/mlx/Qwen3-Coder-Next-4bit"
+ctx = 65536
+port = 8081
+args = ["--max-tokens", "16000"]

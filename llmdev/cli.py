@@ -4,7 +4,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from llmdev import bench, cards, registry, runner, server
+from llmdev import bench, cards, registry, runner, server, pull
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -94,6 +94,30 @@ def _dispatch(args) -> int:
         else:
             return 1
 
+    elif args.command == "add":
+        models_path = str(ROOT / "models.toml")
+        block = pull.add_model(
+            models_path,
+            registry_data,
+            args.name,
+            args.backend,
+            source=args.source,
+            file=args.file or "",
+            ctx=args.ctx,
+        )
+        print(block, end="")
+        return 0
+
+    elif args.command == "pull":
+        m = registry.get(registry_data, args.name)
+        returncode = pull.pull(m)
+        if returncode == 0:
+            print(f"pulled {args.name}")
+            return 0
+        else:
+            print(f"pull failed with code {returncode}", file=sys.stderr)
+            return returncode
+
     return 0
 
 
@@ -130,6 +154,18 @@ def main(argv=None) -> int:
     run_parser.add_argument("--repo", default=".", help="Repository path")
     run_parser.add_argument("--message", help="Extra message")
 
+    # add
+    add_parser = subparsers.add_parser("add", help="Add a model")
+    add_parser.add_argument("name", help="Model name")
+    add_parser.add_argument("--backend", required=True, choices=["ollama", "llama", "mlx"], help="Backend")
+    add_parser.add_argument("--source", default="", help="Source (e.g., Hugging Face repo)")
+    add_parser.add_argument("--file", default="", help="GGUF file name (for llama backend)")
+    add_parser.add_argument("--ctx", type=int, default=65536, help="Context size")
+
+    # pull
+    pull_parser = subparsers.add_parser("pull", help="Pull a model")
+    pull_parser.add_argument("name", help="Model name")
+
     try:
         args = parser.parse_args(argv)
     except SystemExit as e:
@@ -137,6 +173,6 @@ def main(argv=None) -> int:
 
     try:
         return _dispatch(args)
-    except (registry.RegistryError, server.ServerError, cards.CardError) as e:
+    except (registry.RegistryError, server.ServerError, cards.CardError, pull.PullError) as e:
         print(str(e), file=sys.stderr)
         return 1
