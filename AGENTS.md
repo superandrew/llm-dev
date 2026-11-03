@@ -1,4 +1,7 @@
-# Rules for the local coding agent (Aider)
+# Rules for the local coding model (Aider, OpenCode, Qwen Code)
+
+These rules are for the local model that writes the code of a card. If you are the supervisor
+(Claude Code, Codex, a human) who writes cards and reviews runs, read `SUPERVISOR.md` instead.
 
 llm-dev is a deterministic toolkit to serve, benchmark and drive local LLMs
 (Ollama, llama.cpp `llama-server`, MLX `mlx_lm.server`) on a Mac.

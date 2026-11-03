@@ -2,7 +2,8 @@
 
 Deterministic tooling to serve, benchmark and drive local LLMs on a Mac
 (Ollama, llama.cpp `llama-server`, MLX `mlx_lm.server`). The code is written by a local model
-(Aider + Qwen) from the cards in `cards/`, reviewed by Claude, committed by Andrew.
+(Aider + Qwen) from the cards in `cards/`, reviewed by a supervisor (Claude or Codex, see
+`SUPERVISOR.md`), committed by Andrew.
 Python >= 3.11, standard library only.
 
 ## Quick start
