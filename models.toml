@@ -7,16 +7,8 @@ backend = "ollama"          # ollama | llama | mlx
 model = "qwen3-coder-next"  # ollama tag, GGUF path (llama) or MLX path/repo (mlx)
 ctx = 65536
 port = 11434
-notes = "Current Aider worker (Ollama)."
+notes = "Same model through Ollama; the working model is qwen-coder-next-mlx."
 
-# Fill in after downloading the same model in the other formats, then benchmark all three.
-# [models.qwen-coder-next-gguf]
-# backend = "llama"
-# model = "~/models/gguf/<file>.gguf"
-# ctx = 65536
-# port = 8080
-# args = ["-ngl", "99", "-fa", "on"]
-#
 [models.qwen-coder-next-mlx]
 backend = "mlx"
 model = "~/models/mlx/Qwen3-Coder-Next-4bit"
