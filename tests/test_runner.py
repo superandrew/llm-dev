@@ -752,6 +752,7 @@ class TestRunCard(unittest.TestCase):
 
             agent_call = [c for c in calls if isinstance(c[0], list) and c[0][0] == "qwen"][0]
             self.assertEqual(agent_call[1]["cwd"], repo)
+            self.assertEqual(agent_call[1]["env"]["PWD"], os.path.abspath(repo))
             self.assertEqual(agent_call[1].get("stdin"), __import__('subprocess').DEVNULL)
             self.assertEqual(agent_call[1].get("stderr"), __import__('subprocess').STDOUT)
 

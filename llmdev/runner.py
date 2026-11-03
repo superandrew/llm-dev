@@ -246,6 +246,7 @@ def run_card(
 
     full_env = os.environ.copy()
     full_env.update(env)
+    full_env["PWD"] = os.path.abspath(repo)
 
     before = changed_paths(repo, run)
 
