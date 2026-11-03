@@ -41,3 +41,11 @@ backend = "ollama"
 model = "gemma4:e4b"
 ctx = 65536
 port = 11434
+
+[models.qwen38-mlx]
+backend = "mlx"
+model = "~/models/mlx/Qwen3.8-27B-MLX-4bit"
+ctx = 65536
+port = 8082
+source = "lmstudio-community/Qwen3.8-27B-MLX-4bit"
+args = ["--max-tokens", "16000", "--chat-template-args", '{"enable_thinking":false}']
