@@ -4,7 +4,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from llmdev import bench, cards, evals, lab, metrics, registry, runner, server, pull
+from llmdev import bench, cards, evals, fit, lab, metrics, registry, runner, server, pull
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -112,8 +112,30 @@ def _dispatch(args) -> int:
         print(block, end="")
         return 0
 
+    elif args.command == "fit":
+        m = registry.get(registry_data, args.name)
+        try:
+            v = fit.check(m)
+        except fit.FitError as e:
+            print(str(e), file=sys.stderr)
+            return 1
+        print(fit.format_verdict(v))
+        if v["disk_ok"] and v["gpu_ok"]:
+            return 0
+        return 1
+
     elif args.command == "pull":
         m = registry.get(registry_data, args.name)
+        if m.backend in ("mlx", "llama"):
+            try:
+                v = fit.check(m)
+            except (fit.FitError, OSError) as e:
+                print(f"fit check skipped: {e}", file=sys.stderr)
+            else:
+                print(fit.format_verdict(v))
+                if not v["disk_ok"]:
+                    print("not enough disk space", file=sys.stderr)
+                    return 1
         returncode = pull.pull(m)
         if returncode == 0:
             print(f"pulled {args.name}")
@@ -246,6 +268,10 @@ def main(argv=None) -> int:
     add_parser.add_argument("--source", default="", help="Source (e.g., Hugging Face repo)")
     add_parser.add_argument("--file", default="", help="GGUF file name (for llama backend)")
     add_parser.add_argument("--ctx", type=int, default=65536, help="Context size")
+
+    # fit
+    fit_parser = subparsers.add_parser("fit", help="Check a model fits disk and GPU memory")
+    fit_parser.add_argument("name", help="Model name")
 
     # pull
     pull_parser = subparsers.add_parser("pull", help="Pull a model")

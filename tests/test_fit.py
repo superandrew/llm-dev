@@ -2,8 +2,10 @@ import os
 import tempfile
 import types
 import unittest
+from pathlib import Path
 
 from llmdev import fit
+from llmdev.cli import main
 from llmdev.registry import Model
 
 
@@ -117,3 +119,142 @@ class TestFit(unittest.TestCase):
                                disk_usage=lambda p: seen.append(p) or fake_disk)
             self.assertEqual(seen, [tmpdir])
             self.assertTrue(result["disk_ok"])
+
+
+class TestFitCli(unittest.TestCase):
+    def test_fit_ok(self):
+        import tempfile
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            models_path = os.path.join(tmpdir, "models.toml")
+            with open(models_path, "w") as f:
+                f.write("""
+[defaults]
+host = "127.0.0.1"
+
+[models.test]
+backend = "mlx"
+model = "~/models/mlx/test"
+ctx = 4096
+port = 8080
+source = "org/repo"
+""")
+
+            v = fit.verdict(65 * fit.GB, 300 * fit.GB, 77 * fit.GB)
+
+            with mock.patch("llmdev.cli.ROOT", Path(tmpdir)):
+                with mock.patch("llmdev.cli.fit.check", return_value=v) as mock_check:
+                    ret = main(["fit", "test"])
+                    self.assertEqual(ret, 0)
+                    mock_check.assert_called_once()
+
+    def test_fit_not_ok(self):
+        import tempfile
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            models_path = os.path.join(tmpdir, "models.toml")
+            with open(models_path, "w") as f:
+                f.write("""
+[defaults]
+host = "127.0.0.1"
+
+[models.test]
+backend = "mlx"
+model = "~/models/mlx/test"
+ctx = 4096
+port = 8080
+source = "org/repo"
+""")
+
+            v = fit.verdict(82 * fit.GB, 300 * fit.GB, 77 * fit.GB)
+
+            with mock.patch("llmdev.cli.ROOT", Path(tmpdir)):
+                with mock.patch("llmdev.cli.fit.check", return_value=v) as mock_check:
+                    ret = main(["fit", "test"])
+                    self.assertEqual(ret, 1)
+                    mock_check.assert_called_once()
+
+    def test_fit_error(self):
+        import tempfile
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            models_path = os.path.join(tmpdir, "models.toml")
+            with open(models_path, "w") as f:
+                f.write("""
+[defaults]
+host = "127.0.0.1"
+
+[models.test]
+backend = "mlx"
+model = "~/models/mlx/test"
+ctx = 4096
+port = 8080
+source = "org/repo"
+""")
+
+            with mock.patch("llmdev.cli.ROOT", Path(tmpdir)):
+                with mock.patch("llmdev.cli.fit.check", side_effect=fit.FitError("x")) as mock_check:
+                    ret = main(["fit", "test"])
+                    self.assertEqual(ret, 1)
+                    mock_check.assert_called_once()
+
+    def test_pull_fit_check_fails(self):
+        import tempfile
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            models_path = os.path.join(tmpdir, "models.toml")
+            with open(models_path, "w") as f:
+                f.write("""
+[defaults]
+host = "127.0.0.1"
+
+[models.test]
+backend = "mlx"
+model = "~/models/mlx/test"
+ctx = 4096
+port = 8080
+source = "org/repo"
+""")
+
+            v = fit.verdict(65 * fit.GB, 70 * fit.GB, 77 * fit.GB)
+
+            with mock.patch("llmdev.cli.ROOT", Path(tmpdir)):
+                with mock.patch("llmdev.cli.fit.check", return_value=v) as mock_check:
+                    with mock.patch("llmdev.cli.pull.pull") as mock_pull:
+                        ret = main(["pull", "test"])
+                        self.assertEqual(ret, 1)
+                        mock_check.assert_called_once()
+                        mock_pull.assert_not_called()
+
+    def test_pull_fit_check_ok(self):
+        import tempfile
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            models_path = os.path.join(tmpdir, "models.toml")
+            with open(models_path, "w") as f:
+                f.write("""
+[defaults]
+host = "127.0.0.1"
+
+[models.test]
+backend = "mlx"
+model = "~/models/mlx/test"
+ctx = 4096
+port = 8080
+source = "org/repo"
+""")
+
+            v = fit.verdict(65 * fit.GB, 300 * fit.GB, 77 * fit.GB)
+
+            with mock.patch("llmdev.cli.ROOT", Path(tmpdir)):
+                with mock.patch("llmdev.cli.fit.check", return_value=v) as mock_check:
+                    with mock.patch("llmdev.cli.pull.pull", return_value=0) as mock_pull:
+                        ret = main(["pull", "test"])
+                        self.assertEqual(ret, 0)
+                        mock_check.assert_called_once()
+                        mock_pull.assert_called_once()
