@@ -275,6 +275,67 @@ class TestTUI(unittest.TestCase):
             self.assertEqual(cli.main(["tui"]), 0)
         run_tui.assert_called_once_with(str(cli.ROOT))
 
+    def test_render_styled_with_system(self):
+        state = tui.State(
+            rows=[
+                {"name": "model1", "backend": "ollama", "healthy": True, "pid": 1234, "prefill_tps": 100.5, "decode_tps": 50.2},
+                {"name": "model2", "backend": "mlx", "healthy": True, "pid": None, "prefill_tps": None, "decode_tps": None},
+                {"name": "model3", "backend": "ollama", "healthy": False, "pid": None, "prefill_tps": None, "decode_tps": None},
+            ],
+            selected=0,
+            system="GPU 5%",
+            system_level="warn",
+            message="boom",
+        )
+
+        styled = tui.render_styled(state, 80)
+        styles = [style for _, style in styled]
+
+        self.assertEqual(styles, ["title", "header", "selected", "healthy", "row", "row", "system_warn", "message", "footer"])
+        self.assertEqual(styled[6][0], "GPU 5%")
+
+    def test_render_styled_no_system(self):
+        state = tui.State(
+            rows=[
+                {"name": "model1", "backend": "ollama", "healthy": True, "pid": 1234, "prefill_tps": 100.5, "decode_tps": 50.2},
+                {"name": "model2", "backend": "mlx", "healthy": False, "pid": None, "prefill_tps": None, "decode_tps": None},
+                {"name": "model3", "backend": "ollama", "healthy": False, "pid": None, "prefill_tps": None, "decode_tps": None},
+            ],
+            selected=0,
+            system="",
+            system_level="ok",
+            message="boom",
+        )
+
+        styled = tui.render_styled(state, 80)
+        styles = [style for _, style in styled]
+
+        self.assertEqual(len(styles), 8)
+        self.assertNotIn("system_warn", styles)
+
+    def test_render_styled_with_job(self):
+        state = tui.State(
+            rows=[],
+            selected=0,
+            system="",
+            system_level="ok",
+            message="",
+            job=object(),
+            job_label="serve model1",
+            job_log="",
+        )
+
+        styled = tui.render_styled(state, 80)
+        styles = [style for _, style in styled]
+
+        self.assertEqual(styles[-2], "job")
+
+    def test_system_level(self):
+        self.assertEqual(tui.system_level({}), "ok")
+        self.assertEqual(tui.system_level({"available_bytes": 4 * 1024 ** 3}), "alert")
+        self.assertEqual(tui.system_level({"available_bytes": 12 * 1024 ** 3}), "warn")
+        self.assertEqual(tui.system_level({"available_bytes": 32 * 1024 ** 3}), "ok")
+
 
 if __name__ == "__main__":
     unittest.main()

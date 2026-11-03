@@ -5,7 +5,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from llmdev import lab, registry, server
+from llmdev import lab, registry, server, system
 
 
 @dataclass
@@ -16,6 +16,20 @@ class State:
     job: object = None
     job_label: str = ""
     job_log: str = ""
+    system: str = ""
+    system_level: str = "ok"
+
+
+def system_level(m) -> str:
+    """ok, warn or alert from the memory still available."""
+    available = m.get("available_bytes")
+    if available is None:
+        return "ok"
+    if available < 8 * system.GB:
+        return "alert"
+    if available < 16 * system.GB:
+        return "warn"
+    return "ok"
 
 
 def build_rows(registry_data, statuses, summaries) -> list:
@@ -44,15 +58,15 @@ def job_command(action, name, llm_path) -> list:
     return [sys.executable, llm_path, action, name]
 
 
-def render_lines(state, width) -> list:
-    """Render TUI lines."""
+def render_styled(state, width) -> list:
+    """Render TUI lines as (text, style) pairs."""
     lines = []
 
     # Title
-    lines.append("LLM Dev - Lab TUI")
+    lines.append(("LLM Dev - Lab TUI", "title"))
 
     # Header
-    lines.append("  name                      backend pid    prefill t/s  decode t/s")
+    lines.append(("  name                      backend pid    prefill t/s  decode t/s", "header"))
 
     # Rows
     for i, row in enumerate(state.rows):
@@ -73,27 +87,38 @@ def render_lines(state, width) -> list:
         line = f"{marker} {shown:<25} {backend:<7} {pid_str:<6} {prefill_str:<12} {decode_str}"
 
         # Cut to width
-        line = line[:width]
-        # Remove trailing spaces
-        line = line.rstrip()
-        lines.append(line)
+        line = line[:width].rstrip()
+
+        if i == state.selected:
+            style = "selected"
+        elif healthy:
+            style = "healthy"
+        else:
+            style = "row"
+        lines.append((line, style))
 
     # Empty line
-    lines.append("")
+    lines.append(("", "row"))
+
+    # System line
+    if state.system:
+        lines.append((state.system, "system_" + state.system_level))
 
     # Job line or message
     if state.job is not None:
-        lines.append(f"running: {state.job_label} - {state.job_log}")
+        lines.append((f"running: {state.job_label} - {state.job_log}", "job"))
     else:
-        lines.append(state.message)
+        lines.append((state.message, "message"))
 
     # Footer
-    lines.append("up/down select  s serve/stop  p pull  b sweep  r refresh  q quit")
+    lines.append(("up/down select  s serve/stop  p pull  b sweep  r refresh  q quit", "footer"))
 
-    # Cut all lines to width and remove trailing spaces
-    lines = [line[:width].rstrip() for line in lines]
+    return [(text[:width].rstrip(), style) for text, style in lines]
 
-    return lines
+
+def render_lines(state, width) -> list:
+    """Render TUI lines."""
+    return [text for text, _ in render_styled(state, width)]
 
 
 def handle_key(state, key, start_job) -> bool:
@@ -191,10 +216,54 @@ def run_tui(root):
         state.rows = build_rows(models, statuses, summaries)
         state.selected = min(state.selected, max(len(state.rows) - 1, 0))
 
-    return curses.wrapper(_loop, state, refresh, start_job, read_last_line)
+    def refresh_system():
+        m = system.sample()
+        state.system = system.status_line(m)
+        state.system_level = system_level(m)
+
+    def wrapper_refresh():
+        refresh()
+        refresh_system()
+
+    return curses.wrapper(_loop, state, wrapper_refresh, start_job, read_last_line)
+
+
+STYLES = {
+    "title": (curses.COLOR_CYAN, -1, curses.A_BOLD),
+    "header": (curses.COLOR_WHITE, -1, curses.A_BOLD | curses.A_UNDERLINE),
+    "selected": (curses.COLOR_BLACK, curses.COLOR_CYAN, curses.A_BOLD),
+    "healthy": (curses.COLOR_GREEN, -1, curses.A_BOLD),
+    "row": (-1, -1, 0),
+    "system_ok": (curses.COLOR_GREEN, -1, 0),
+    "system_warn": (curses.COLOR_YELLOW, -1, curses.A_BOLD),
+    "system_alert": (curses.COLOR_RED, -1, curses.A_BOLD),
+    "job": (curses.COLOR_MAGENTA, -1, curses.A_BOLD),
+    "message": (curses.COLOR_RED, -1, 0),
+    "footer": (curses.COLOR_BLUE, -1, curses.A_DIM),
+}
+
+
+def init_styles() -> dict:
+    """Map style names to curses attributes; plain attributes without colours."""
+    colours = curses.has_colors()
+    if colours:
+        try:
+            curses.start_color()
+            curses.use_default_colors()
+        except curses.error:
+            colours = False
+    attrs = {}
+    for i, (name, (fg, bg, extra)) in enumerate(STYLES.items(), start=1):
+        if colours:
+            curses.init_pair(i, fg, bg)
+            attrs[name] = curses.color_pair(i) | extra
+        else:
+            attrs[name] = extra
+    return attrs
 
 
 def _loop(stdscr, state, refresh, start_job, read_last_line):
+    attrs = init_styles()
     stdscr.timeout(1000)
     last_refresh = 0.0
     while True:
@@ -207,8 +276,10 @@ def _loop(stdscr, state, refresh, start_job, read_last_line):
 
         height, width = stdscr.getmaxyx()
         stdscr.erase()
-        for i, line in enumerate(render_lines(state, width - 1)[:height]):
-            stdscr.addstr(i, 0, line)
+        for i, (line, style) in enumerate(render_styled(state, width - 1)[:height]):
+            if style == "selected":
+                line = line.ljust(width - 1)
+            stdscr.addstr(i, 0, line, attrs.get(style, 0))
         stdscr.refresh()
 
         key = stdscr.getch()
