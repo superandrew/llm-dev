@@ -239,7 +239,7 @@ STYLES = {
     "system_alert": (curses.COLOR_RED, -1, curses.A_BOLD),
     "job": (curses.COLOR_MAGENTA, -1, curses.A_BOLD),
     "message": (curses.COLOR_RED, -1, 0),
-    "footer": (curses.COLOR_BLUE, -1, curses.A_DIM),
+    "footer": (curses.COLOR_WHITE, -1, 0),
 }
 
 
