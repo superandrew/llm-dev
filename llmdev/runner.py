@@ -22,6 +22,20 @@ BASE_FLAGS = [
     "--timeout", "900",
 ]
 
+LLM_ERROR_PREFIXES = ("litellm.", "Empty response received from LLM")
+
+
+def llm_errors(text: str) -> list:
+    """Return the Aider history lines that report a model or server error."""
+    errors = []
+    for line in text.splitlines():
+        if not line.startswith("> "):
+            continue
+        body = line[2:].strip()
+        if body.startswith(LLM_ERROR_PREFIXES):
+            errors.append(body)
+    return errors
+
 
 def strip_trailing_spaces(repo: str, paths) -> list:
     """Remove spaces and tabs at the end of lines; return the paths that changed."""
@@ -240,6 +254,15 @@ def run_card(
 
     # Write meta.json
     empty = empty_files(card, repo)
+    llm_errors_list = []
+    if os.path.exists(history_path):
+        try:
+            with open(history_path, "r", encoding="utf-8", errors="replace") as f:
+                history_text = f.read()
+            llm_errors_list = llm_errors(history_text)
+        except OSError:
+            pass
+
     meta = {
         "card_id": card.id,
         "title": card.title,
@@ -254,6 +277,7 @@ def run_card(
         "empty_files": empty,
         "stray_files": stray,
         "stripped_files": stripped,
+        "llm_errors": llm_errors_list,
         "run_dir": run_dir,
     }
 

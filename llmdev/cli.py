@@ -90,6 +90,9 @@ def _dispatch(args) -> int:
 
         print(json.dumps(meta))
 
+        if meta.get("llm_errors"):
+            print(f"model errors: {meta['llm_errors'][0]}", file=sys.stderr)
+
         if meta["passed"]:
             return 0
         else:

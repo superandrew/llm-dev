@@ -397,6 +397,38 @@ class TestStripTrailingSpaces(unittest.TestCase):
             self.assertEqual(result, ["a.py", "z.py"])
 
 
+class TestLlmErrors(unittest.TestCase):
+    def test_empty_response(self):
+        from llmdev.runner import llm_errors
+        text = "> Tokens: 11k sent, 0 received.  \n> Empty response received from LLM. Check your provider account?  \n"
+        result = llm_errors(text)
+        self.assertEqual(result, ["Empty response received from LLM. Check your provider account?"])
+
+    def test_litellm_error(self):
+        from llmdev.runner import llm_errors
+        text = "> litellm.NotFoundError: NotFoundError: OpenAIException - Error code: 404 - {'error': 'generation thread died'}  \n"
+        result = llm_errors(text)
+        self.assertEqual(len(result), 1)
+        self.assertTrue(result[0].startswith("litellm.NotFoundError"))
+
+    def test_no_marker(self):
+        from llmdev.runner import llm_errors
+        text = "litellm.NotFoundError at the start of a line without the marker\n"
+        result = llm_errors(text)
+        self.assertEqual(result, [])
+
+    def test_no_error(self):
+        from llmdev.runner import llm_errors
+        text = "#### Implement card 011\n> Applied edit to llmdev/evals.py\n"
+        result = llm_errors(text)
+        self.assertEqual(result, [])
+
+    def test_empty_text(self):
+        from llmdev.runner import llm_errors
+        result = llm_errors("")
+        self.assertEqual(result, [])
+
+
 class TestRunCard(unittest.TestCase):
     def test_run_card_success(self):
         from llmdev.registry import Model
