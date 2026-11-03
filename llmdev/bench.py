@@ -53,8 +53,8 @@ def measure(t0: float, timed_events: list[tuple[float, dict]]) -> dict:
         choices = event.get("choices", [])
         if choices:
             delta = choices[0].get("delta", {})
-            content = delta.get("content")
-            if content:
+            content = delta.get("content") or delta.get("reasoning_content") or delta.get("reasoning")
+            if isinstance(content, str) and content:
                 content_times.append(_)
 
     if usage:

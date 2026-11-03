@@ -120,6 +120,38 @@ class TestMeasure(unittest.TestCase):
         self.assertEqual(result["ttft_s"], 1.33)
         self.assertEqual(result["decode_tps"], 0.75)
 
+    def test_measure_reasoning_content(self):
+        t0 = 0.0
+        events = [
+            (1.0, {"choices": [{"delta": {"reasoning_content": "a"}}]}),
+            (2.0, {"choices": [{"delta": {"reasoning_content": "b"}}]}),
+            (3.0, {"choices": [{"delta": {"content": "c"}}]}),
+            (3.0, {"usage": {"prompt_tokens": 100, "completion_tokens": 3}}),
+        ]
+        result = measure(t0, events)
+        self.assertEqual(result["ttft_s"], 1.0)
+        self.assertEqual(result["decode_tps"], 1.0)
+
+    def test_measure_reasoning_key(self):
+        t0 = 0.0
+        events = [
+            (1.0, {"choices": [{"delta": {"reasoning": "a"}}]}),
+            (2.0, {"choices": [{"delta": {"reasoning": "b"}}]}),
+            (3.0, {"choices": [{"delta": {"content": "c"}}]}),
+            (3.0, {"usage": {"prompt_tokens": 100, "completion_tokens": 3}}),
+        ]
+        result = measure(t0, events)
+        self.assertEqual(result["ttft_s"], 1.0)
+
+    def test_measure_reasoning_none_content(self):
+        t0 = 0.0
+        events = [
+            (1.0, {"choices": [{"delta": {"reasoning_content": None, "content": None}}]}),
+            (2.0, {"usage": {"prompt_tokens": 10, "completion_tokens": 0}}),
+        ]
+        result = measure(t0, events)
+        self.assertIsNone(result["ttft_s"])
+
 
 class TestRun(unittest.TestCase):
     def test_run_payload(self):

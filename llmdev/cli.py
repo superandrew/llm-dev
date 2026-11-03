@@ -131,7 +131,11 @@ def _dispatch(args) -> int:
         seed = int(datetime.now().timestamp()) % 50
         sweep_id = datetime.now().isoformat()
 
-        rows = lab.sweep(m, seed=seed)
+        try:
+            rows = lab.sweep(m, seed=seed)
+        except (TimeoutError, OSError) as e:
+            print(f"sweep failed on {args.name}: {e}", file=sys.stderr)
+            return 1
 
         for row in rows:
             row["sweep"] = sweep_id
