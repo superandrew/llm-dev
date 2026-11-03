@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 import unittest
@@ -8,6 +9,8 @@ from llmdev.runner import (
     BASE_FLAGS,
     aider_command,
     aider_model,
+    agent_command,
+    agent_message,
     default_message,
     run_card,
     run_checks,
@@ -429,6 +432,70 @@ class TestLlmErrors(unittest.TestCase):
         self.assertEqual(result, [])
 
 
+class TestAgentMessage(unittest.TestCase):
+    def test_agent_message(self):
+        card = Card(
+            path="cards/001.md",
+            id="001",
+            title="Test",
+            edit=("a.py", "b.py"),
+            read=(),
+            checks=("c1", "c2"),
+            commit="feat: test",
+        )
+        msg = agent_message(card)
+        self.assertIn("cards/001.md", msg)
+        self.assertIn("Edit only: a.py, b.py.", msg)
+        self.assertIn("c1 && c2", msg)
+
+
+class TestAgentCommand(unittest.TestCase):
+    def test_agent_command_qwen(self):
+        from llmdev.registry import Model
+        m = Model(
+            name="test",
+            backend="mlx",
+            model="~/models/mlx/x",
+            ctx=4096,
+            port=8081,
+        )
+        cmd, env = agent_command("qwen", m, "http://127.0.0.1:8081/v1", "hello")
+        self.assertEqual(cmd[0], "qwen")
+        self.assertEqual(cmd[-1], "hello")
+        self.assertEqual(cmd[cmd.index("--openai-base-url") + 1], "http://127.0.0.1:8081/v1")
+        self.assertEqual(cmd[cmd.index("--model") + 1], "~/models/mlx/x")
+        self.assertEqual(env, {})
+
+    def test_agent_command_opencode(self):
+        from llmdev.registry import Model
+        m = Model(
+            name="test",
+            backend="mlx",
+            model="~/models/mlx/x",
+            ctx=4096,
+            port=8081,
+        )
+        cmd, env = agent_command("opencode", m, "http://127.0.0.1:8081/v1", "hello")
+        self.assertEqual(cmd[:2], ["opencode", "run"])
+        self.assertEqual(cmd[cmd.index("--model") + 1], "local/~/models/mlx/x")
+        self.assertEqual(cmd[-1], "hello")
+        config = json.loads(env["OPENCODE_CONFIG_CONTENT"])
+        self.assertEqual(config["provider"]["local"]["options"]["baseURL"], "http://127.0.0.1:8081/v1")
+
+    def test_agent_command_unknown(self):
+        from llmdev.registry import Model
+        m = Model(
+            name="test",
+            backend="mlx",
+            model="~/models/mlx/x",
+            ctx=4096,
+            port=8081,
+        )
+        with self.assertRaises(ValueError) as cm:
+            agent_command("cursor", m, "u", "hello")
+        self.assertIn("unknown harness", str(cm.exception))
+
+
 class TestRunCard(unittest.TestCase):
     def test_run_card_success(self):
         from llmdev.registry import Model
@@ -487,6 +554,7 @@ class TestRunCard(unittest.TestCase):
             self.assertEqual(meta["card_id"], "001")
             self.assertEqual(meta["model_name"], "test")
             self.assertEqual(meta["backend"], "ollama")
+            self.assertEqual(meta["harness"], "aider")
 
             run_dir = os.path.join(runs_dir, "20240101-120000-001")
             self.assertTrue(os.path.exists(run_dir))
@@ -619,6 +687,76 @@ class TestRunCard(unittest.TestCase):
             message_idx = aider_call[0].index("--message")
             message = aider_call[0][message_idx + 1]
             self.assertTrue(message.endswith(" more"))
+
+    def test_run_card_qwen_harness(self):
+        from llmdev.registry import Model
+
+        card = Card(
+            path="cards/001.md",
+            id="001",
+            title="Test",
+            edit=("file1.py",),
+            read=(),
+            checks=("echo test",),
+            commit="feat: test",
+        )
+
+        m = Model(
+            name="test",
+            backend="mlx",
+            model="~/models/mlx/x",
+            ctx=4096,
+            port=8081,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo = tmpdir
+            runs_dir = os.path.join(tmpdir, "runs")
+            os.makedirs(runs_dir)
+            with open(os.path.join(repo, "file1.py"), "w") as f:
+                f.write("x")
+
+            calls = []
+            def fake_run(cmd, **kwargs):
+                if isinstance(cmd, list) and cmd[:2] == ["git", "diff"]:
+                    result = type('obj', (object,), {
+                        'returncode': 0,
+                        'stdout': 'DIFF',
+                        'stderr': '',
+                    })()
+                else:
+                    result = type('obj', (object,), {
+                        'returncode': 0,
+                        'stdout': 'success',
+                        'stderr': '',
+                    })()
+                calls.append((cmd, kwargs))
+                return result
+
+            def fake_now():
+                return datetime(2024, 1, 1, 12, 0, 0)
+
+            meta = run_card(
+                card, m, "http://127.0.0.1:8081/v1", repo, runs_dir,
+                run=fake_run, now=fake_now, harness="qwen"
+            )
+
+            self.assertTrue(meta["passed"])
+            self.assertEqual(meta["harness"], "qwen")
+
+            run_dir = os.path.join(runs_dir, "20240101-120000-001")
+            self.assertTrue(os.path.exists(run_dir))
+            self.assertTrue(os.path.exists(os.path.join(run_dir, "meta.json")))
+            self.assertTrue(os.path.exists(os.path.join(run_dir, "diff.patch")))
+            self.assertTrue(os.path.exists(os.path.join(run_dir, "agent.log")))
+
+            agent_call = [c for c in calls if isinstance(c[0], list) and c[0][0] == "qwen"][0]
+            self.assertEqual(agent_call[1]["cwd"], repo)
+            self.assertEqual(agent_call[1].get("stdin"), __import__('subprocess').DEVNULL)
+            self.assertEqual(agent_call[1].get("stderr"), __import__('subprocess').STDOUT)
+
+            aider_calls = [c for c in calls if isinstance(c[0], list) and c[0][0] == "aider"]
+            self.assertEqual(len(aider_calls), 0)
 
 
 if __name__ == "__main__":

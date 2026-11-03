@@ -23,6 +23,42 @@ BASE_FLAGS = [
 ]
 
 LLM_ERROR_PREFIXES = ("litellm.", "Empty response received from LLM")
+HARNESSES = ("aider", "qwen", "opencode")
+
+
+def agent_message(card: Card) -> str:
+    """Build the prompt for a tool-calling agent."""
+    return (f"Implement card {card.id} as written in {card.path}. Follow AGENTS.md. "
+            "Read the files the card lists under read. Edit only: "
+            + ", ".join(card.edit) + ". Create no other file. When you are done, run "
+            "these checks and fix the code until they all pass: "
+            + " && ".join(card.checks) + ". Do not commit. No line may end with spaces.")
+
+
+def agent_command(harness: str, m: Model, base_url: str, message: str) -> tuple[list[str], dict]:
+    """Build the command and environment of a tool-calling agent."""
+    if harness == "qwen":
+        cmd = ["qwen", "--auth-type", "openai", "--openai-base-url", base_url,
+               "--openai-api-key", "local", "--model", m.model,
+               "--approval-mode", "yolo", message]
+        return cmd, {}
+    if harness == "opencode":
+        config = {
+            "provider": {
+                "local": {
+                    "npm": "@ai-sdk/openai-compatible",
+                    "name": "local",
+                    "options": {"baseURL": base_url, "apiKey": "local"},
+                    "models": {m.model: {"name": m.name}},
+                }
+            },
+            "autoupdate": False,
+            "share": "disabled",
+        }
+        cmd = ["opencode", "run", "--standalone", "--model", f"local/{m.model}",
+               "--auto", message]
+        return cmd, {"OPENCODE_CONFIG_CONTENT": json.dumps(config)}
+    raise ValueError(f"unknown harness: {harness}")
 
 
 def llm_errors(text: str) -> list:
@@ -186,6 +222,7 @@ def run_card(
     now=datetime.now,
     extra: str = "",
     timeout_s: int = 2400,
+    harness: str = "aider",
 ) -> dict:
     """Run a card and return metadata."""
     started = now()
@@ -193,27 +230,37 @@ def run_card(
     run_dir = os.path.join(runs_dir, f"{timestamp}-{card.id}")
     os.makedirs(run_dir, exist_ok=True)
 
-    history_path = os.path.join(run_dir, "aider.md")
-
-    message = default_message(card)
-    if extra:
-        message += " " + extra
-
-    cmd, env = aider_command(card, m, base_url, history_path, message)
+    timed_out = False
+    if harness == "aider":
+        history_path = os.path.join(run_dir, "aider.md")
+        message = default_message(card)
+        if extra:
+            message += " " + extra
+        cmd, env = aider_command(card, m, base_url, history_path, message)
+    else:
+        history_path = os.path.join(run_dir, "agent.log")
+        message = agent_message(card)
+        if extra:
+            message += " " + extra
+        cmd, env = agent_command(harness, m, base_url, message)
 
     full_env = os.environ.copy()
     full_env.update(env)
 
     before = changed_paths(repo, run)
 
-    timed_out = False
     try:
-        result = run(
-            cmd,
-            cwd=repo,
-            env=full_env,
-            timeout=timeout_s,
-        )
+        if harness == "aider":
+            result = run(
+                cmd,
+                cwd=repo,
+                env=full_env,
+                timeout=timeout_s,
+            )
+        else:
+            with open(history_path, "w") as log:
+                result = run(cmd, cwd=repo, env=full_env, timeout=timeout_s,
+                             stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT)
     except subprocess.TimeoutExpired:
         timed_out = True
         result = type('obj', (object,), {
@@ -268,6 +315,7 @@ def run_card(
         "title": card.title,
         "model_name": m.name,
         "backend": m.backend,
+        "harness": harness,
         "started": started.isoformat(),
         "ended": ended.isoformat(),
         "aider_returncode": result.returncode,
