@@ -298,6 +298,105 @@ class TestRunChecks(unittest.TestCase):
         self.assertEqual(len(results[0]["output"]), 4000)
 
 
+class TestStripTrailingSpaces(unittest.TestCase):
+    def test_strip_trailing_spaces_multiple_lines(self):
+        import re
+        from llmdev.runner import strip_trailing_spaces
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            a_py = os.path.join(tmpdir, "a.py")
+            with open(a_py, "w", encoding="utf-8", newline="") as f:
+                f.write("x = 1   \n\n    \ny = 2\t\n")
+
+            result = strip_trailing_spaces(tmpdir, ["a.py"])
+
+            self.assertEqual(result, ["a.py"])
+            with open(a_py, "r", encoding="utf-8", newline="") as f:
+                content = f.read()
+            self.assertEqual(content, "x = 1\n\n\ny = 2\n")
+
+    def test_strip_trailing_spaces_no_change(self):
+        from llmdev.runner import strip_trailing_spaces
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            b_py = os.path.join(tmpdir, "b.py")
+            with open(b_py, "w", encoding="utf-8", newline="") as f:
+                f.write("x = 1\n")
+
+            result = strip_trailing_spaces(tmpdir, ["b.py"])
+
+            self.assertEqual(result, [])
+            with open(b_py, "r", encoding="utf-8", newline="") as f:
+                content = f.read()
+            self.assertEqual(content, "x = 1\n")
+
+    def test_strip_trailing_spaces_no_final_newline(self):
+        import re
+        from llmdev.runner import strip_trailing_spaces
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            c_py = os.path.join(tmpdir, "c.py")
+            with open(c_py, "w", encoding="utf-8", newline="") as f:
+                f.write("x = 1  ")
+
+            result = strip_trailing_spaces(tmpdir, ["c.py"])
+
+            self.assertEqual(result, ["c.py"])
+            with open(c_py, "r", encoding="utf-8", newline="") as f:
+                content = f.read()
+            self.assertEqual(content, "x = 1")
+
+    def test_strip_trailing_spaces_binary(self):
+        from llmdev.runner import strip_trailing_spaces
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            d_py = os.path.join(tmpdir, "d.py")
+            with open(d_py, "wb") as f:
+                f.write(b"x = 1 \r\ny\r\n")
+
+            result = strip_trailing_spaces(tmpdir, ["d.py"])
+
+            self.assertEqual(result, ["d.py"])
+            with open(d_py, "rb") as f:
+                content = f.read()
+            self.assertEqual(content, b"x = 1\r\ny\r\n")
+
+    def test_strip_trailing_spaces_missing_file(self):
+        from llmdev.runner import strip_trailing_spaces
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = strip_trailing_spaces(tmpdir, ["nonexistent.py"])
+
+            self.assertEqual(result, [])
+
+    def test_strip_trailing_spaces_binary_decode_error(self):
+        from llmdev.runner import strip_trailing_spaces
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            e_bin = os.path.join(tmpdir, "e.bin")
+            with open(e_bin, "wb") as f:
+                f.write(b"\xff\xfe  \n")
+
+            result = strip_trailing_spaces(tmpdir, ["e.bin"])
+
+            self.assertEqual(result, [])
+
+    def test_strip_trailing_spaces_multiple_files(self):
+        from llmdev.runner import strip_trailing_spaces
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            z_py = os.path.join(tmpdir, "z.py")
+            a_py = os.path.join(tmpdir, "a.py")
+            with open(z_py, "w", encoding="utf-8", newline="") as f:
+                f.write("z = 1  \n")
+            with open(a_py, "w", encoding="utf-8", newline="") as f:
+                f.write("a = 1  \n")
+
+            result = strip_trailing_spaces(tmpdir, ["z.py", "a.py"])
+
+            self.assertEqual(result, ["a.py", "z.py"])
+
+
 class TestRunCard(unittest.TestCase):
     def test_run_card_success(self):
         from llmdev.registry import Model

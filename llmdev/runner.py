@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 from datetime import datetime
 
@@ -20,6 +21,26 @@ BASE_FLAGS = [
     "--yes-always",
     "--timeout", "900",
 ]
+
+
+def strip_trailing_spaces(repo: str, paths) -> list:
+    """Remove spaces and tabs at the end of lines; return the paths that changed."""
+    changed = []
+    for path in paths:
+        full = os.path.join(repo, path)
+        if not os.path.isfile(full):
+            continue
+        try:
+            with open(full, encoding="utf-8", newline="") as f:
+                text = f.read()
+        except UnicodeDecodeError:
+            continue
+        tidy = re.sub(r"[ \t]+(?=\r?\n|\Z)", "", text)
+        if tidy != text:
+            with open(full, "w", encoding="utf-8", newline="") as f:
+                f.write(tidy)
+            changed.append(path)
+    return sorted(changed)
 
 
 def aider_model(m: Model, base_url: str) -> tuple[str, dict]:
@@ -190,6 +211,8 @@ def run_card(
     after = changed_paths(repo, run)
     stray = sorted(after - before - set(card.edit))
 
+    stripped = strip_trailing_spaces(repo, card.edit)
+
     checks_result = run_checks(card.checks, repo, run)
     passed = all(r["returncode"] == 0 for r in checks_result)
 
@@ -230,6 +253,7 @@ def run_card(
         "timed_out": timed_out,
         "empty_files": empty,
         "stray_files": stray,
+        "stripped_files": stripped,
         "run_dir": run_dir,
     }
 
