@@ -24,24 +24,6 @@ ctx = 65536
 port = 8081
 args = ["--max-tokens", "16000"]
 
-[models.qwen38]
-backend = "ollama"
-model = "qwen3.8:latest"
-ctx = 65536
-port = 11434
-
-[models.llama31-70b]
-backend = "ollama"
-model = "llama3.1:70b"
-ctx = 65536
-port = 11434
-
-[models.gemma4-e4b]
-backend = "ollama"
-model = "gemma4:e4b"
-ctx = 65536
-port = 11434
-
 [models.qwen38-mlx]
 backend = "mlx"
 model = "~/models/mlx/Qwen3.8-27B-MLX-4bit"
@@ -49,3 +31,33 @@ ctx = 65536
 port = 8082
 source = "lmstudio-community/Qwen3.8-27B-MLX-4bit"
 args = ["--max-tokens", "16000", "--chat-template-args", '{"enable_thinking":false}']
+
+[models.qwen-coder-next-mlx6]
+backend = "mlx"
+model = "~/models/mlx/Qwen3-Coder-Next-MLX-6bit"
+ctx = 65536
+port = 8083
+source = "lmstudio-community/Qwen3-Coder-Next-MLX-6bit"
+args = ["--max-tokens", "16000"]
+
+# Same GGUF file Ollama uses, served by llama-server: one setting changes per entry.
+[models.qwen-coder-next-gguf]
+backend = "llama"
+model = "/Users/superandrew/.ollama/models/blobs/sha256-30e51a7cb1cf1333b9e298b90b4c7790fe2572d8736b002482a0ac96328a2ffb"
+ctx = 65536
+port = 8084
+args = ["-ngl", "99", "-np", "1"]
+
+[models.qwen-coder-next-gguf-spec]
+backend = "llama"
+model = "/Users/superandrew/.ollama/models/blobs/sha256-30e51a7cb1cf1333b9e298b90b4c7790fe2572d8736b002482a0ac96328a2ffb"
+ctx = 65536
+port = 8085
+args = ["-ngl", "99", "-np", "1", "--spec-type", "ngram-mod"]
+
+[models.qwen-coder-next-gguf-batch]
+backend = "llama"
+model = "/Users/superandrew/.ollama/models/blobs/sha256-30e51a7cb1cf1333b9e298b90b4c7790fe2572d8736b002482a0ac96328a2ffb"
+ctx = 65536
+port = 8086
+args = ["-ngl", "99", "-np", "1", "-b", "4096", "-ub", "2048"]
