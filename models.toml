@@ -40,24 +40,27 @@ port = 8083
 source = "lmstudio-community/Qwen3-Coder-Next-MLX-6bit"
 args = ["--max-tokens", "16000"]
 
-# Same GGUF file Ollama uses, served by llama-server: one setting changes per entry.
+# Standard Q4_K_M GGUF (Ollama renames tensors, so its blob does not load): one setting changes per entry.
 [models.qwen-coder-next-gguf]
 backend = "llama"
-model = "/Users/superandrew/.ollama/models/blobs/sha256-30e51a7cb1cf1333b9e298b90b4c7790fe2572d8736b002482a0ac96328a2ffb"
+model = "~/models/gguf/Qwen3-Coder-Next-Q4_K_M.gguf"
+source = "lmstudio-community/Qwen3-Coder-Next-GGUF"
 ctx = 65536
 port = 8084
 args = ["-ngl", "99", "-np", "1"]
 
 [models.qwen-coder-next-gguf-spec]
 backend = "llama"
-model = "/Users/superandrew/.ollama/models/blobs/sha256-30e51a7cb1cf1333b9e298b90b4c7790fe2572d8736b002482a0ac96328a2ffb"
+model = "~/models/gguf/Qwen3-Coder-Next-Q4_K_M.gguf"
+source = "lmstudio-community/Qwen3-Coder-Next-GGUF"
 ctx = 65536
 port = 8085
 args = ["-ngl", "99", "-np", "1", "--spec-type", "ngram-mod"]
 
 [models.qwen-coder-next-gguf-batch]
 backend = "llama"
-model = "/Users/superandrew/.ollama/models/blobs/sha256-30e51a7cb1cf1333b9e298b90b4c7790fe2572d8736b002482a0ac96328a2ffb"
+model = "~/models/gguf/Qwen3-Coder-Next-Q4_K_M.gguf"
+source = "lmstudio-community/Qwen3-Coder-Next-GGUF"
 ctx = 65536
 port = 8086
 args = ["-ngl", "99", "-np", "1", "-b", "4096", "-ub", "2048"]
