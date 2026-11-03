@@ -56,3 +56,27 @@ source = "lmstudio-community/Qwen3-Coder-Next-GGUF"
 ctx = 65536
 port = 8086
 args = ["-ngl", "99", "-np", "1", "-b", "4096", "-ub", "2048"]
+
+[models.gpt-oss-120b-mlx]
+backend = "mlx"
+model = "~/models/mlx/gpt-oss-120b-MXFP4-Q8"
+ctx = 65536
+port = 8087
+source = "mlx-community/gpt-oss-120b-MXFP4-Q8"
+args = ["--max-tokens", "8192"]
+
+[models.qwen36-mlx6]
+backend = "mlx"
+model = "~/models/mlx/Qwen3.6-35B-A3B-6bit"
+ctx = 65536
+port = 8088
+source = "mlx-community/Qwen3.6-35B-A3B-6bit"
+args = ["--max-tokens", "8192"]
+
+[models.nanbeige43-gguf]
+backend = "llama"
+model = "~/models/gguf/Nanbeige_Nanbeige4.3-33B-Q4_K_M.gguf"
+ctx = 65536
+port = 8089
+source = "bartowski/Nanbeige_Nanbeige4.3-33B-GGUF"
+args = ["-ngl", "99", "-np", "1"]
