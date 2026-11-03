@@ -14,7 +14,7 @@ backend = "mlx"
 model = "~/models/mlx/Qwen3-Coder-Next-4bit"
 ctx = 65536
 port = 8081
-args = ["--max-tokens", "16000"]
+args = ["--max-tokens", "8192"]
 
 [models.qwen38-mlx]
 backend = "mlx"
@@ -22,7 +22,7 @@ model = "~/models/mlx/Qwen3.8-27B-MLX-4bit"
 ctx = 65536
 port = 8082
 source = "lmstudio-community/Qwen3.8-27B-MLX-4bit"
-args = ["--max-tokens", "16000", "--chat-template-args", '{"enable_thinking":false}']
+args = ["--max-tokens", "8192", "--chat-template-args", '{"enable_thinking":false}']
 
 [models.qwen-coder-next-mlx6]
 backend = "mlx"
@@ -30,7 +30,7 @@ model = "~/models/mlx/Qwen3-Coder-Next-MLX-6bit"
 ctx = 65536
 port = 8083
 source = "lmstudio-community/Qwen3-Coder-Next-MLX-6bit"
-args = ["--max-tokens", "16000"]
+args = ["--max-tokens", "8192"]
 
 # Standard Q4_K_M GGUF (Ollama renames tensors, so its blob does not load): one setting changes per entry.
 [models.qwen-coder-next-gguf]
