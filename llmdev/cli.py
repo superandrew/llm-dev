@@ -86,6 +86,7 @@ def _dispatch(args) -> int:
             str(runs_dir),
             extra=args.message or "",
             timeout_s=args.timeout,
+            harness=args.harness,
         )
 
         print(json.dumps(meta))
@@ -202,7 +203,7 @@ def _dispatch(args) -> int:
         runs_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            row = evals.run_eval(args.name, m, server.base_url(m), str(ROOT), str(runs_dir), timeout_s=args.timeout)
+            row = evals.run_eval(args.name, m, server.base_url(m), str(ROOT), str(runs_dir), timeout_s=args.timeout, harness=args.harness)
         except cards.CardError as e:
             print(str(e), file=sys.stderr)
             return 1
@@ -260,6 +261,7 @@ def main(argv=None) -> int:
     run_parser.add_argument("--repo", default=".", help="Repository path")
     run_parser.add_argument("--message", help="Extra message")
     run_parser.add_argument("--timeout", type=int, default=2400, help="Timeout in seconds")
+    run_parser.add_argument("--harness", choices=runner.HARNESSES, default="aider", help="Coding tool")
 
     # add
     add_parser = subparsers.add_parser("add", help="Add a model")
@@ -297,6 +299,7 @@ def main(argv=None) -> int:
     eval_parser.add_argument("name", help="Eval name")
     eval_parser.add_argument("--model", required=True, help="Model name")
     eval_parser.add_argument("--timeout", type=int, default=1800, help="Timeout in seconds")
+    eval_parser.add_argument("--harness", choices=runner.HARNESSES, default="aider", help="Coding tool")
 
     # evals
     evals_parser = subparsers.add_parser("evals", help="Show eval records")

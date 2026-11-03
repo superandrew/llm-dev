@@ -10,7 +10,7 @@ from datetime import datetime
 from llmdev import cards, metrics, runner
 
 
-def run_eval(name, m, base_url, root, runs_dir, run=subprocess.run, run_card=runner.run_card, timeout_s=1800):
+def run_eval(name, m, base_url, root, runs_dir, run=subprocess.run, run_card=runner.run_card, timeout_s=1800, harness="aider"):
     """Run an eval and return a row dict."""
     evals_dir = os.path.join(root, "evals", name)
     if not os.path.isdir(evals_dir):
@@ -37,7 +37,7 @@ def run_eval(name, m, base_url, root, runs_dir, run=subprocess.run, run_card=run
         card = dataclasses.replace(card, path="cards/task.md", id=name)
 
         # Run card
-        meta = run_card(card, m, base_url, repo, runs_dir, run=run, timeout_s=timeout_s)
+        meta = run_card(card, m, base_url, repo, runs_dir, run=run, timeout_s=timeout_s, harness=harness)
 
         # Copy hidden tests
         hidden_src = os.path.join(evals_dir, "hidden")
@@ -73,6 +73,7 @@ def run_eval(name, m, base_url, root, runs_dir, run=subprocess.run, run_card=run
             "eval": name,
             "model": m.name,
             "backend": m.backend,
+            "harness": harness,
             "passed": meta.get("passed"),
             "hidden_passed": hidden_passed,
             "hidden_total": hidden_total,
@@ -124,9 +125,13 @@ def format_evals(rows):
         if row.get('hidden_passed') is None or row.get('hidden_total') is None:
             hidden_str = "-"
 
+        model = fmt(row.get("model"))
+        if row.get("harness", "aider") != "aider":
+            model += "+" + row["harness"]
+
         formatted_rows.append([
             fmt(row.get("eval")),
-            fmt(row.get("model")),
+            model,
             fmt(row.get("backend")),
             fmt(row.get("passed")),
             hidden_str,
