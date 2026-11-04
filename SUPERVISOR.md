@@ -60,6 +60,12 @@ the local model pays off on mechanical work (tests, CLI wiring, parsing, boilerp
 - A new test file needs a check that runs it (`python3 -m unittest tests.test_x -v`): an empty
   test module passes `discover`.
 - With `whole`, any text line before a code fence becomes a file name.
+- A file the card names as a model to copy ("like `tests/test_x.py`") goes in `read`: the
+  model sees only `edit` and `read`, and otherwise guesses (pytest, wrong imports).
+- A line that appears several times in a file needs an anchor (the `def` line it belongs to):
+  the model edits the first matches.
+- A new file in `diff` format starts empty: tell the model its SEARCH section is empty, or it
+  loops on failed SEARCH blocks until the timeout.
 
 ## Models and engines
 

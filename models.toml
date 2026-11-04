@@ -96,3 +96,11 @@ ctx = 65536
 port = 8091
 source = "ggml-org/gpt-oss-120b-GGUF"
 args = ["-ngl", "99", "-np", "1"]
+
+[models.gpt-oss-120b-gguf-128k]
+backend = "llama"
+model = "~/models/gguf/gpt-oss-120b-MXFP4.gguf"
+ctx = 131072
+port = 8092
+source = "ggml-org/gpt-oss-120b-GGUF"
+args = ["-ngl", "99", "-np", "1"]
