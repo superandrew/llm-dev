@@ -9,7 +9,8 @@ cards, launches the runs and reviews them.
 | Step | Who | Why |
 |---|---|---|
 | Understand the problem, design, split it into cards | supervisor | quality matters most here and it costs few tokens |
-| Write the code of a card | Qwen3-Coder-Next on MLX 6-bit, Aider | about 14 s for a small card, local, free |
+| Write the code of a card | gpt-oss-120b on `llama-server`, Aider | passed every `durations` and `cron` eval, 30-90 s, local, free |
+| Small mechanical card, speed first | Qwen3-Coder-Next on MLX 6-bit, Aider | about 14 s, but weaker on harder cards |
 | Open-ended card that needs test-fix loops | OpenCode on `llama-server` | slower (about 2 min) but fixes its own failures |
 | Review the diff, commit | supervisor | reading a diff is cheap |
 
@@ -25,10 +26,11 @@ the local model pays off on mechanical work (tests, CLI wiring, parsing, boilerp
    shows up as a stray file.
 2. Copy it to `cards/NNN-name.md`, `git add` it, start the model and run it:
 
-        bin/llm serve qwen-coder-next-mlx6
-        bin/llm run cards/NNN-name.md --model qwen-coder-next-mlx6 --timeout 1800
+        bin/llm serve gpt-oss-120b-gguf
+        bin/llm run cards/NNN-name.md --model gpt-oss-120b-gguf --timeout 1800
 
-   For an agent: `bin/llm serve qwen-coder-next-gguf` and add `--harness opencode` (or `qwen`).
+   For an agent add `--harness opencode` (or `qwen`) with a `llama-server` model.
+   For another repo pass `--repo PATH` and run from inside it; work in a clone under `~/code/`.
 3. Review. Never trust `passed` alone:
    - `git status --short`: the `edit` files changed, nothing else (no stray files, nothing
      outside the repo).
@@ -52,6 +54,9 @@ the local model pays off on mechanical work (tests, CLI wiring, parsing, boilerp
 - When the model ignores an instruction twice, put the exact code in the card.
 - Give expected test values as expressions (`65 * fit.GB`), not computed numbers.
 - A `grep` check must match text the card itself dictates.
+- Give the test cases with exact inputs and expected values, and say which fakes to use
+  (`run=`, clock, config path). Local models write wrong tests more often than wrong code: on
+  card 011 gpt-oss wrote correct code twice and failed both times on its own tests.
 - A new test file needs a check that runs it (`python3 -m unittest tests.test_x -v`): an empty
   test module passes `discover`.
 - With `whole`, any text line before a code fence becomes a file name.
@@ -60,16 +65,24 @@ the local model pays off on mechanical work (tests, CLI wiring, parsing, boilerp
 
 Measured in November 2026 (see the README for the numbers):
 
-- `qwen-coder-next-mlx6`: working model with Aider.
-- `qwen-coder-next-mlx`: same model in 4-bit, a little faster, a little less reliable.
+- `gpt-oss-120b-gguf`: working model with Aider (MoE, about 5B active parameters, 37 tokens/s).
+  Context is 64k: a single file above about 50k tokens needs a variant with `-c 131072`.
+- `qwen-coder-next-mlx6`: fast fallback; `qwen-coder-next-mlx` the same in 4-bit.
 - `qwen-coder-next-gguf` (`llama-server`): for agents. `mlx_lm.server` cannot parse Qwen3-Coder
   tool calls, so agents stop at their first step on MLX.
+- The engine matters as much as the model: models with a reply format of their own (gpt-oss
+  harmony) or with reasoning go on `llama-server`; `mlx_lm.server` breaks them.
 - Ollama: slowest on real cards.
 - Before downloading a new model: `bin/llm fit NAME`.
 
 ## Known traps
 
 - `mlx_lm.server` crashes on runaway replies of about 15k tokens: MLX entries cap at 8192.
+- A reasoning model on MLX can spend the whole cap thinking and return an empty reply: turn
+  thinking off (`--chat-template-args '{"enable_thinking":false}'`).
+- Heat: under load the Mac reaches thermal pressure "heavy" and the GPU drops from about 1350 to
+  400-700 MHz, halving decode speed. Compare models only from a cool start
+  (`notifyutil -g com.apple.system.thermalpressurelevel` is 0) and watch `macmon`.
 - OpenCode uses `$PWD` as its working folder; the runner sets it to the run's repo.
 - Qwen Code needs `node` on `PATH` (installed with `fnm`).
 - Agents run shell commands without asking and without a sandbox: run them only on throwaway

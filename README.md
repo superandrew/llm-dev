@@ -2,16 +2,16 @@
 
 Deterministic tooling to serve, benchmark and drive local LLMs on a Mac
 (Ollama, llama.cpp `llama-server`, MLX `mlx_lm.server`). The code is written by a local model
-(Aider + Qwen) from the cards in `cards/`, reviewed by a supervisor (Claude or Codex, see
+(Aider + gpt-oss-120b) from the cards in `cards/`, reviewed by a supervisor (Claude or Codex, see
 `SUPERVISOR.md`), committed by Andrew.
 Python >= 3.11, standard library only.
 
 ## Quick start
 
     bin/llm list
-    bin/llm serve qwen-coder-next-mlx6
-    bin/llm run cards/<card>.md --model qwen-coder-next-mlx6
-    bin/llm stop qwen-coder-next-mlx6
+    bin/llm serve gpt-oss-120b-gguf
+    bin/llm run cards/<card>.md --model gpt-oss-120b-gguf
+    bin/llm stop gpt-oss-120b-gguf
 
 ## Commands
 
@@ -34,8 +34,25 @@ Python >= 3.11, standard library only.
 
 ## Models
 
-- Working model: `qwen-coder-next-mlx6` (Qwen3-Coder-Next 80B, MLX 6-bit, 60 GB).
-- Faster fallback: `qwen-coder-next-mlx` (same model, MLX 4-bit, 42 GB, about 10% faster decode).
+- Working model: `gpt-oss-120b-gguf` (gpt-oss-120b, MXFP4 as released, 63 GB, `llama-server`).
+- Fast fallback for small cards: `qwen-coder-next-mlx6` (Qwen3-Coder-Next 80B, MLX 6-bit, 60 GB);
+  `qwen-coder-next-mlx` is the same in 4-bit (42 GB, about 10% faster decode).
+- Model comparison, November 2026, Aider, 3 x `durations` and 3 x `cron`, each run started with
+  the Mac at nominal thermal pressure:
+
+  | Model | durations | cron |
+  |---|---|---|
+  | `gpt-oss-120b-gguf` | 3/3, 65-66/66 hidden, ~30 s | 3/3, 75-86/89, ~85 s, one round |
+  | `qwen-coder-next-mlx6` | 3/3, 65/66, ~16 s | 1/3, 77-78/89, up to 437 s |
+  | `qwen36-mlx6-nothink` (Qwen3.6 35B A3B) | 3/3, 60-64/66, ~40 s | 2/3, 69-72/89, one endless loop |
+  | Nanbeige4.3 33B (dense, removed) | 0/2, 11 tokens/s | 0/3 |
+
+  On card 011 gpt-oss wrote code that passes the real 11 tests in 2 replays of 3 (Qwen 6-bit:
+  1 of 2), but every replay failed its own tests: local models write wrong tests (a real
+  `models.toml` loaded, a clock not faked) more often than wrong code.
+- gpt-oss-120b on `mlx_lm.server` fails: the harmony tags (`<|channel|>final<|message|>`) end up
+  in the reply and Aider takes them for a file name. Qwen3.6 with thinking on returns an empty
+  reply: the reasoning fills the 8192-token cap and Aider ignores the `reasoning` field.
 - Reserve: `qwen38-mlx` (Qwen3.8 27B, MLX 4-bit, 15 GB), thinking off with
   `--chat-template-args '{"enable_thinking":false}'`.
 - Engine comparison, November 2026, same Qwen3-Coder-Next, `durations` eval x5 and card 011 x2:
@@ -58,6 +75,8 @@ Python >= 3.11, standard library only.
   runner removes trailing spaces from the `edit` files and lists them in `stripped_files`.
 - `llm_errors` lists the model or server errors found in the Aider history: a run with errors
   is a broken server, not a weak model.
+- Checks run with a CPU limit of 120 s per process (`ulimit -t`) and a wall limit of 300 s, hidden
+  tests with the same wall limit: code with an endless loop fails instead of hanging the run.
 
 ## Writing cards for Aider
 
@@ -91,3 +110,4 @@ Python >= 3.11, standard library only.
 | 019 | `fit` and `pull` check the disk |
 | 020 | agent harnesses |
 | 021 | `--harness` on `run` and `eval` |
+| 022 | time limits on checks and hidden tests |
