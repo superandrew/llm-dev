@@ -45,8 +45,18 @@ def run_eval(name, m, base_url, root, runs_dir, run=subprocess.run, run_card=run
         shutil.copytree(hidden_src, hidden_dst)
 
         # Run hidden tests
-        result = run(["python3", "-m", "unittest", "discover", "-s", "hidden_tests", "-t", "."], cwd=repo, capture_output=True, text=True)
-        hidden_passed, hidden_total = hidden_score(result.stdout + result.stderr)
+        try:
+            result = run(
+                ["python3", "-m", "unittest", "discover", "-s", "hidden_tests", "-t", "."],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+                timeout=runner.CHECK_TIMEOUT_S,
+            )
+            hidden_output = result.stdout + result.stderr
+        except subprocess.TimeoutExpired:
+            hidden_output = ""
+        hidden_passed, hidden_total = hidden_score(hidden_output)
 
         # Get stats from aider.md
         run_dir = meta.get("run_dir", "")

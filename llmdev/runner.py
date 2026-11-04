@@ -7,6 +7,13 @@ from datetime import datetime
 from llmdev.cards import Card
 from llmdev.registry import Model
 
+CHECK_CPU_S = 120
+CHECK_TIMEOUT_S = 300
+
+def limited(cmd: str) -> str:
+    """Prefix a shell command with a CPU time limit that its children inherit."""
+    return f"ulimit -t {CHECK_CPU_S}; {cmd}"
+
 
 BASE_FLAGS = [
     "--no-auto-commits",
@@ -150,7 +157,7 @@ def aider_command(
     for r in card.read:
         cmd.extend(["--read", r])
 
-    cmd.extend(["--test-cmd", " && ".join(card.checks)])
+    cmd.extend(["--test-cmd", limited(" && ".join(card.checks))])
     cmd.extend(["--auto-test"])
 
     if message is None:
@@ -166,21 +173,29 @@ def run_checks(checks: tuple, cwd: str, run=subprocess.run) -> list[dict]:
     """Run checks and return results."""
     results = []
     for check in checks:
-        result = run(
-            check,
-            shell=True,
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-        )
-        output = result.stdout + result.stderr
-        if len(output) > 4000:
-            output = output[-4000:]
-        results.append({
-            "cmd": check,
-            "returncode": result.returncode,
-            "output": output,
-        })
+        try:
+            result = run(
+                limited(check),
+                shell=True,
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                timeout=CHECK_TIMEOUT_S,
+            )
+            output = result.stdout + result.stderr
+            if len(output) > 4000:
+                output = output[-4000:]
+            results.append({
+                "cmd": check,
+                "returncode": result.returncode,
+                "output": output,
+            })
+        except subprocess.TimeoutExpired:
+            results.append({
+                "cmd": check,
+                "returncode": None,
+                "output": f"timeout after {CHECK_TIMEOUT_S} s",
+            })
     return results
 
 

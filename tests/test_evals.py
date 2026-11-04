@@ -47,6 +47,69 @@ class TestRunEval(unittest.TestCase):
                 runs_dir="/tmp/runs",
             )
 
+    def test_hidden_timeout(self):
+        import subprocess
+        from llmdev import runner
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Setup eval directory
+            evals_dir = os.path.join(tmpdir, "evals", "demo", "seed", "cards")
+            os.makedirs(evals_dir)
+            task_path = os.path.join(evals_dir, "task.md")
+            with open(task_path, "w") as f:
+                f.write("+++\nid = \"task\"\ntitle = \"Task\"\nedit = []\nchecks = [\"true\"]\ncommit = \"task\"\n+++\n")
+
+            hidden_dir = os.path.join(tmpdir, "evals", "demo", "hidden")
+            os.makedirs(hidden_dir)
+            with open(os.path.join(hidden_dir, "test_x.py"), "w") as f:
+                f.write("import unittest\n\nclass TestX(unittest.TestCase):\n    def test_x(self):\n        self.assertTrue(True)\n")
+
+            # Setup repo directory
+            repo_dir = os.path.join(tmpdir, "repo")
+            os.makedirs(repo_dir)
+
+            # Setup runs directory
+            runs_dir = os.path.join(tmpdir, "runs")
+            os.makedirs(runs_dir)
+
+            # Create meta.json with run_dir
+            meta_dir = os.path.join(runs_dir, "20240101-000000-task")
+            os.makedirs(meta_dir)
+            with open(os.path.join(meta_dir, "meta.json"), "w") as f:
+                json.dump({"run_dir": meta_dir, "passed": True, "timed_out": False, "empty_files": [], "stray_files": []}, f)
+
+            # Create aider.md
+            with open(os.path.join(meta_dir, "aider.md"), "w") as f:
+                f.write("> Tokens: 1k sent, 2k received.\n")
+
+            # Fake run function
+            commands_run = []
+
+            def fake_run(cmd, *args, **kwargs):
+                commands_run.append(cmd)
+                if cmd[0] == "git":
+                    return subprocess.CompletedProcess(cmd, 0, "", "")
+                elif cmd[0] == "python3" and "unittest" in cmd:
+                    raise subprocess.TimeoutExpired(cmd, runner.CHECK_TIMEOUT_S)
+                else:
+                    return subprocess.CompletedProcess(cmd, 0, "", "")
+
+            # Fake run_card function
+            def fake_run_card(card, *args, **kwargs):
+                return {"passed": True, "timed_out": False, "empty_files": [], "stray_files": [], "run_dir": meta_dir}
+
+            row = evals.run_eval(
+                name="demo",
+                m=type("Model", (), {"name": "test", "backend": "ollama"})(),
+                base_url="http://localhost:11434",
+                root=tmpdir,
+                runs_dir=runs_dir,
+                run=fake_run,
+                run_card=fake_run_card,
+            )
+
+            self.assertEqual(row["hidden_passed"], 0)
+            self.assertEqual(row["hidden_total"], 0)
+
     def test_run_eval_flow(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             # Setup eval directory

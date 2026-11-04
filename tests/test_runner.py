@@ -2,6 +2,7 @@ import json
 import os
 import tempfile
 import unittest
+import subprocess
 from datetime import datetime
 
 from llmdev.cards import Card, CardError, parse
@@ -183,6 +184,9 @@ class TestAiderCommand(unittest.TestCase):
         self.assertIn("history.md", cmd)
         self.assertIn("--read", cmd)
         self.assertIn("--test-cmd", cmd)
+        # Verify the test command is prefixed with the CPU limit
+        test_cmd_index = cmd.index("--test-cmd") + 1
+        self.assertTrue(cmd[test_cmd_index].startswith("ulimit -t 120; "))
         self.assertIn("--auto-test", cmd)
         self.assertIn("--message", cmd)
 
@@ -299,6 +303,39 @@ class TestRunChecks(unittest.TestCase):
         results = run_checks(checks, "/tmp", run=fake_run)
 
         self.assertEqual(len(results[0]["output"]), 4000)
+
+    def test_limited(self):
+        from llmdev.runner import limited
+        self.assertEqual(limited("true"), "ulimit -t 120; true")
+
+    def test_run_checks_passes_limits(self):
+        recorded = {}
+        def fake_run(cmd, **kwargs):
+            recorded['cmd'] = cmd
+            recorded['timeout'] = kwargs.get('timeout')
+            result = type('obj', (object,), {
+                'returncode': 0,
+                'stdout': '',
+                'stderr': '',
+            })()
+            return result
+
+        checks = ("echo hi",)
+        results = run_checks(checks, "/tmp", run=fake_run)
+
+        self.assertEqual(recorded['cmd'], "ulimit -t 120; echo hi")
+        self.assertEqual(recorded['timeout'], 300)
+        self.assertEqual(results[0]["cmd"], "echo hi")
+
+    def test_run_checks_timeout(self):
+        def fake_run(cmd, **kwargs):
+            raise subprocess.TimeoutExpired("x", 300)
+
+        checks = ("any",)
+        results = run_checks(checks, "/tmp", run=fake_run)
+
+        self.assertIsNone(results[0]["returncode"])
+        self.assertEqual(results[0]["output"], "timeout after 300 s")
 
 
 class TestStripTrailingSpaces(unittest.TestCase):
