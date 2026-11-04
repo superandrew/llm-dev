@@ -66,6 +66,10 @@ the local model pays off on mechanical work (tests, CLI wiring, parsing, boilerp
   the model edits the first matches.
 - A new file in `diff` format starts empty: tell the model its SEARCH section is empty, or it
   loops on failed SEARCH blocks until the timeout.
+- Green can be fake. Seen: a method indented inside the previous one (an `ast.walk` loader
+  still finds it), new tests at module level that never run, and code that detects the test's
+  mock to pass. Read the diff, dictate the exact call of each test, and load methods from
+  `ClassDef.body` only.
 
 ## Models and engines
 
