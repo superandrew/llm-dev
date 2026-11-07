@@ -32,6 +32,8 @@ Python >= 3.11, standard library only.
 | `evals` | table of evals |
 | `tui` | terminal lab |
 
+`bin/batch CARD...` runs cards of another repo in a clone, one by one (see `SUPERVISOR.md`).
+
 ## Models
 
 - Working model: `gpt-oss-120b-gguf` (gpt-oss-120b, MXFP4 as released, 63 GB, `llama-server`).

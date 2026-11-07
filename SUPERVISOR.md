@@ -31,6 +31,9 @@ the local model pays off on mechanical work (tests, CLI wiring, parsing, boilerp
 
    For an agent add `--harness opencode` (or `qwen`) with a `llama-server` model.
    For another repo pass `--repo PATH` and run from inside it; work in a clone under `~/code/`.
+   For a series of cards of another repo use `bin/batch 027 028`: it starts the model if
+   needed, runs each card in the clone (`REPO`, default `~/code/studiopilot-local`), commits
+   the green ones there, saves the red ones in `runs/batch/` and stops the model at the end.
 3. Review. Never trust `passed` alone:
    - `git status --short`: the `edit` files changed, nothing else (no stray files, nothing
      outside the repo).

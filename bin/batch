@@ -1,0 +1,78 @@
+#!/bin/zsh
+# Run cards of another repo one by one in a clone with the local model.
+# Green cards are committed in the clone, red ones are saved as patches.
+#
+#   bin/batch 027 028            cards from $SRC, run in $REPO
+#
+# Env: REPO (clone, default ~/code/studiopilot-local), SRC (folder with the cards,
+# default ~/code/studiopilot/docs/tasks), MODEL (default gpt-oss-120b-gguf-128k),
+# OUT (logs and patches, default runs/batch), KEEP_SERVER=1 to leave the model running.
+# Then review every diff (green can be fake, see SUPERVISOR.md) and fetch the clone
+# into the real repo as a branch.
+LAB=${0:A:h:h}
+REPO=${REPO:-$HOME/code/studiopilot-local}
+SRC=${SRC:-$HOME/code/studiopilot/docs/tasks}
+MODEL=${MODEL:-gpt-oss-120b-gguf-128k}
+OUT=${OUT:-$LAB/runs/batch}
+[ $# -gt 0 ] || { sed -n 2,12p "$0"; exit 2; }
+mkdir -p "$OUT" "$REPO/docs/tasks/local"
+cd "$REPO" || exit 1
+[ -z "$(git status --porcelain --untracked-files=no)" ] || { echo "$REPO has uncommitted changes"; exit 1; }
+
+healthy() { "$LAB/bin/llm" status "$MODEL" 2>/dev/null | grep -q '"healthy": true'; }
+if ! healthy; then
+  "$LAB/bin/llm" serve "$MODEL" || exit 1
+  for i in $(seq 1 100); do healthy && break; /bin/sleep 3; done
+  healthy || { echo "$MODEL did not start"; exit 1; }
+  started=1
+fi
+
+level() { notifyutil -g com.apple.system.thermalpressurelevel | awk '{print $NF}'; }
+cool() { for i in $(seq 1 30); do [ "$(level)" = "0" ] && return 0; /bin/sleep 10; done; }
+toml() { python3 -c "
+import tomllib,sys
+t=tomllib.loads(open(sys.argv[1]).read().split('+++')[1])
+v=t[sys.argv[2]]
+print(' '.join(v) if isinstance(v,list) else v)" "$@"; }
+
+for card in "$@"; do
+  f=$(ls "$SRC"/$card-*.md 2>/dev/null | head -1)
+  [ -n "$f" ] || { echo "$card: no card in $SRC"; continue; }
+  cp "$f" docs/tasks/local/
+  card_path=docs/tasks/local/$(basename "$f")
+  cool
+  start=$(date +%s)
+  "$LAB/bin/llm" run "$card_path" --model "$MODEL" --repo . --timeout 2400 </dev/null > "$OUT/$card.json" 2>&1
+  secs=$(( $(date +%s) - start ))
+  run_dir=$(ls -td "$LAB"/runs/*-$card | head -1)
+  passed=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['passed'])" "$run_dir/meta.json")
+  edits=$(toml "$card_path" edit)
+  # undo the runner's trailing-space clean-up of untouched lines in existing files
+  for e in ${=edits}; do
+    if git cat-file -e HEAD:"$e" 2>/dev/null; then
+      git diff --ignore-space-at-eol -- "$e" > "$OUT/$card-ws.patch"
+      git checkout -q -- "$e"
+      [ -s "$OUT/$card-ws.patch" ] && git apply --ignore-whitespace "$OUT/$card-ws.patch"
+    fi
+  done
+  suite=$(.venv/bin/python -m unittest discover -s tests 2>&1 | grep -E '^(Ran|OK|FAILED)' | tr '\n' ' ')
+  git add -N -- ${=edits} 2>/dev/null
+  wscheck=$(git --no-pager diff --check HEAD -- ${=edits} | head -3 | tr '\n' ' ')
+  stat=$(git diff --shortstat HEAD -- ${=edits})
+  msg=$(toml "$card_path" commit)
+  if [ "$passed" = "True" ] && [[ "$suite" == *OK* ]] && [ -z "$wscheck" ]; then
+    git add -- ${=edits}
+    git commit -q -m "$msg
+
+Written by $MODEL (local), card $card."
+    echo "$card GREEN ${secs}s $stat | $suite | $(git log --oneline -1)"
+  else
+    git diff HEAD -- ${=edits} > "$OUT/$card-red.patch"
+    git reset -q -- ${=edits}
+    git checkout -q -- .
+    for e in ${=edits}; do git cat-file -e HEAD:"$e" 2>/dev/null || rm -f "$e"; done
+    echo "$card RED passed=$passed ${secs}s $stat | $suite | ws:$wscheck | patch $OUT/$card-red.patch"
+  fi
+done
+[ -n "$started" ] && [ -z "$KEEP_SERVER" ] && "$LAB/bin/llm" stop "$MODEL" >/dev/null
+echo "=== end $(date +%T)"
