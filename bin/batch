@@ -51,8 +51,11 @@ for card in "$@"; do
   for e in ${=edits}; do
     if git cat-file -e HEAD:"$e" 2>/dev/null; then
       git diff --ignore-space-at-eol -- "$e" > "$OUT/$card-ws.patch"
+      cp "$e" "$OUT/$card-model.tmp"
       git checkout -q -- "$e"
-      [ -s "$OUT/$card-ws.patch" ] && git apply --ignore-whitespace "$OUT/$card-ws.patch"
+      # if the patch does not re-apply, keep the model's file as it wrote it
+      [ -s "$OUT/$card-ws.patch" ] && { git apply --ignore-whitespace "$OUT/$card-ws.patch" || cp "$OUT/$card-model.tmp" "$e"; }
+      rm -f "$OUT/$card-model.tmp"
     fi
   done
   suite=$(.venv/bin/python -m unittest discover -s tests 2>&1 | grep -E '^(Ran|OK|FAILED)' | tr '\n' ' ')
